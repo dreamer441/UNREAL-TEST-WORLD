@@ -151,7 +151,7 @@ The cleanup creates small public structures under `SpellCreation` and uses them 
 
 `FMaterialPhysicalProperties` remains the single material representation. `FResolvedSpell` derives `FPhysicalBodyState` from the selected shape volume and material density, so mass, volume, density, contact radius, gravity state, and velocity no longer have competing owners.
 
-`FEarthSpellDefinition` and `EEarthSpellShape` will be replaced in source by the generic contracts. Unreal Core Redirects will preserve loading of serialized project assets that reference the old struct or enum names. The old header paths will be removed only after all active source includes have migrated and a clean editor build has confirmed the redirects.
+`FEarthSpellDefinition`, `EEarthSpellShape`, and `UEarthSpellMath` remain as deprecated reflected compatibility adapters. Unreal redirects can rename a reflected type, but cannot safely remap the existing flattened serialized fields into nested shape/material/body structures. Explicit `FromLegacyEarth` and `ToLegacyEarth` conversions will preserve each current field, while existing Blueprint-facing subsystem functions keep their signatures. Active runtime code will use the generic contracts; the adapters are intentionally retained until an explicit saved-data migration is needed.
 
 ## Spell Flow and Behavior Preservation
 
@@ -219,7 +219,7 @@ No runtime registry, service locator, or factory framework will be introduced. T
 
 ## Migration Sequence
 
-1. Add generic spell contracts and pure shape/body helpers, then redirect old serialized names.
+1. Add generic spell contracts and pure shape/body helpers, then add explicit legacy Earth adapters that preserve the current public serialized and Blueprint-facing API.
 2. Convert `SpellCreation`, `LiveSpellCasting`, bindings, preview, and EarthMagic to the contracts while preserving every current numeric range and default.
 3. Add `SpellExecution`, move the production SPACE path from `EarthTestHarness`, and expose a structured execution result.
 4. Invert the `PlayerViewModes → InnerRealm` and `PlayerViewModes → SpellCastingBindings` relationships: InnerRealm requests outer-input suspension from the player-view node, while bindings observe the public top-down state.
