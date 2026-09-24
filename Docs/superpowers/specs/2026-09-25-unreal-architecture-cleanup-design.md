@@ -2,8 +2,8 @@
 
 **Status:** Approved architecture direction; implementation specification review pending
 
-**Project:** `D:\TESTUNREALPROJECT\TESTUNREALPROJECT.uproject`  
-**Engine:** Unreal Engine 5.8 at `D:\UE_5.8`  
+**Project:** `D:\TESTUNREALPROJECT\TESTUNREALPROJECT.uproject`
+**Engine:** Unreal Engine 5.8 at `D:\UE_5.8`
 **Baseline:** Git commit `ecbeb5c` (`chore: capture pre-cleanup Unreal baseline`)
 
 ## Goal
