@@ -1,0 +1,13 @@
+ProjectX Foundation v0.5
+
+- Added PhysicalBody runtime module.
+- Mass is now a first-class body property; material density remains a material property.
+- Test projectile UI now controls mass rather than density and shows derived density.
+- Added material Restitution, Toughness and Rigidity.
+- Added ContactSolver node.
+- Split source structural response from post-impact motion.
+- Added MotionSolver for speed loss, rebound/continuation, impulse and estimated average force.
+- Gravity is enabled from projectile launch and remains enabled after impact.
+- Impact requests use cached pre-impact physics velocity so gravity affects collision calculations.
+- Surviving projectiles can collide again after a short anti-double-hit cooldown.
+- Non-material collisions use ordinary Unreal rigid-body physics instead of deleting the projectile.

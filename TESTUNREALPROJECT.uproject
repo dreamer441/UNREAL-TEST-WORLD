@@ -1,0 +1,55 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "",
+  "Description": "",
+  "Plugins": [
+    {
+      "Name": "ModelingToolsEditorMode",
+      "Enabled": true,
+      "TargetAllowList": [
+        "Editor"
+      ]
+    },
+    {
+      "Name": "MaterialCore",
+      "Enabled": true
+    },
+    {
+      "Name": "PhysicalBody",
+      "Enabled": true
+    },
+    {
+      "Name": "ImpactSystem",
+      "Enabled": true
+    },
+    {
+      "Name": "EarthFoundation",
+      "Enabled": true
+    },
+    {
+      "Name": "EarthTestHarness",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellCreation",
+      "Enabled": true
+    },
+    {
+      "Name": "InnerRealm",
+      "Enabled": true
+    },
+    {
+      "Name": "EarthMagic",
+      "Enabled": true
+    },
+    {
+      "Name": "PlayerViewModes",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellCastingBindings",
+      "Enabled": true
+    }
+  ]
+}

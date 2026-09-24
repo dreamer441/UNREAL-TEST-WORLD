@@ -1,0 +1,7 @@
+ProjectX Foundation v0.5.1 compile fix
+
+Fixes UnrealHeaderTool errors in UE 5.8.2 caused by unsupported Units metadata strings:
+- kg/m^3 on DensityKgPerM3
+- m^3 on VolumeM3
+
+The fields and calculations are unchanged. Only the editor metadata was removed; the unit semantics remain explicit in the property names and documentation.

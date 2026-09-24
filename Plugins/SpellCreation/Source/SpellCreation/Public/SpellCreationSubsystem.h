@@ -1,0 +1,32 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "EarthSpellDefinition.h"
+#include "SpellCreationSubsystem.generated.h"
+
+/**
+ * Data node for spell construction.
+ * Owns only the stored spell definition and keeps its derived mass coherent.
+ */
+UCLASS()
+class SPELLCREATION_API USpellCreationSubsystem : public UWorldSubsystem
+{
+    GENERATED_BODY()
+
+public:
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
+    UFUNCTION(BlueprintPure, Category="Spell Creation")
+    FEarthSpellDefinition GetStoredSpellDefinition() const { return StoredSpell; }
+
+    UFUNCTION(BlueprintCallable, Category="Spell Creation")
+    void SetStoredSpellDefinition(const FEarthSpellDefinition& NewSpell);
+
+    UFUNCTION(BlueprintCallable, Category="Spell Creation")
+    void ResetToDefaultEarthSpell();
+
+private:
+    UPROPERTY()
+    FEarthSpellDefinition StoredSpell;
+};

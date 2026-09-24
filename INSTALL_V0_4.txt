@@ -1,0 +1,19 @@
+FOUNDATION V0.4 - MATERIAL / IMPACT / EARTH + PROJECTILE SLIDERS
+
+1. Close Unreal Editor.
+2. Extract this ZIP directly into D:\TESTUNREALPROJECT\ and replace/merge files.
+3. Run MIGRATE_AND_REBUILD_V0_4.bat from the project root.
+4. It removes the superseded MaterialInteraction plugin and old deformation-era source files, clears generated plugin binaries/intermediates, then opens the project.
+5. Accept Unreal's rebuild prompt.
+6. Tools -> AMADEUS -> Create 4m Earth Subtraction Target.
+7. Press Play.
+8. A panel appears at the top-left.
+9. Press F1 (or TAB) to unlock the mouse and edit Speed / Size / Density.
+10. Press F1 (or TAB) again to return to aiming, then E to fire.
+
+Default ranges:
+- Speed: 5-100 m/s
+- Size: 10-120 cm diameter
+- Density: 500-8000 kg/m^3
+
+The panel also shows the derived projectile mass.

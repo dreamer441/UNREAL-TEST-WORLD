@@ -1,0 +1,11 @@
+Foundation v0.4.1
+
+Fixes a C++/UHT include-order error in EarthTestInputSubsystem.h.
+Unreal requires the *.generated.h include to be the final include in every reflected header.
+The v0.4 file accidentally included Widgets/SWidget.h after EarthTestInputSubsystem.generated.h.
+
+Install:
+1. Close Unreal.
+2. Extract this archive into D:\TESTUNREALPROJECT and replace files.
+3. Run REBUILD_V0_4_1.bat.
+4. Accept the Unreal rebuild prompt.

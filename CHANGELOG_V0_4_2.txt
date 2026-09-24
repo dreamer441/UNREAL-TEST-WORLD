@@ -1,0 +1,9 @@
+Foundation v0.4.2
+
+- ImpactSystem no longer maps removed volume to a sphere.
+- Added independent shape branch: penetration drive vs lateral spread drive.
+- Added crater radius, penetration depth, aspect ratio, and penetration direction to FImpactResult.
+- EarthSubtraction now uses an oriented ellipsoid cutter.
+- Removed volume remains energy/resistance driven.
+- Large/slow projectiles bias wide+shallow; small/fast/dense/hard projectiles bias narrow+deep.
+- Test debug line shows radius/depth/shape ratio.

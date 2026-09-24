@@ -1,0 +1,19 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.10.0",
+  "FriendlyName": "Player View Modes",
+  "Description": "Owns third-person/top-down camera, cursor movement, orbit control and sprint. Does not depend on any spell or physics implementation.",
+  "Category": "Gameplay",
+  "CreatedBy": "ProjectX",
+  "CanContainContent": false,
+  "EnabledByDefault": true,
+  "IsBetaVersion": true,
+  "Modules": [
+    { "Name": "PlayerViewModes", "Type": "Runtime", "LoadingPhase": "Default" }
+  ],
+  "Plugins": [
+    { "Name": "InnerRealm", "Enabled": true },
+    { "Name": "SpellCastingBindings", "Enabled": true }
+  ]
+}

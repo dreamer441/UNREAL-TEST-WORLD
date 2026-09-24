@@ -1,0 +1,18 @@
+AMADEUS / ProjectX Foundation v0.7
+
+- Inner Dimension is now treated as a separate meditation/creation state.
+- Physical world is fully hidden by an opaque realm presentation layer while editing.
+- Player pawn is hidden and movement/look input is disabled in the Inner Realm.
+- Added Earth form shapes: Sphere, Cube, Cone, Pyramid, Wall.
+- Added shape-specific dimension editor.
+- Added Distance modifier (creation position).
+- Speed now includes 0 m/s: zero initial velocity, gravity still applies.
+- Removed Rigidity from player-facing sliders; retained internally as an Earth material property.
+- Player-facing Earth sliders are Hardness, Toughness, Elasticity.
+- Earth material defaults now match the EarthFoundation soil defaults.
+- Added pure EarthSpellMath node for volume, density, bounds, and contact-radius calculations.
+- Added EarthMagic runtime module.
+- EarthMagic creates procedural convex physical bodies from stored spell definitions.
+- E now creates the stored Earth form through EarthMagic instead of a sphere-only projectile class.
+- Removed obsolete EarthTestProjectile implementation from EarthTestHarness.
+- Non-material floor/landscape bounces remain in Chaos and do not print ImpactSystem debug text.

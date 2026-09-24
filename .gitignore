@@ -1,0 +1,32 @@
+# Unreal Engine generated build and runtime data.
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/PluginBuild/
+/Saved/
+/Plugins/**/Binaries/
+/Plugins/**/Intermediate/
+
+# Local IDE and compiler state.
+/.vs/
+/.vscode/
+*.sln
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+
+# Local backups, collected logs, and other generated diagnostics.
+*.zip
+/BuildLogs/
+/*_BUILD_LOG.txt
+**/__pycache__/
+*.py[cod]
+
+# Machine-specific Android File Server credential. Use the tracked template
+# when creating this file on a new machine.
+/Config/DefaultEngine.ini
+
+# Operating-system metadata.
+Thumbs.db
+Desktop.ini

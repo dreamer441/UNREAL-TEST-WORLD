@@ -1,0 +1,26 @@
+AMADEUS / ProjectX - Material Interaction + Earth Subtraction V0.3
+
+1. Close Unreal Editor.
+2. Extract this ZIP directly into D:\TESTUNREALPROJECT\ and merge/replace files.
+3. Reopen TESTUNREALPROJECT.uproject.
+4. Allow Unreal to rebuild the changed/new C++ modules if prompted.
+5. In Unreal: Tools > AMADEUS > Create 4m Earth Subtraction Target.
+6. Press Play.
+7. Face the block and press E.
+8. The projectile disappears on impact and the block should lose real volume.
+9. Repeat shots in the same location. Collision should follow the new hole.
+10. Watch the on-screen line for kinetic energy, effective energy, removed volume, and cutter radius.
+
+Expected default projectile:
+- sphere radius: 22 cm
+- density: 2200 kg/m3
+- hardness: 0.70
+- cohesion: 0.80
+- speed: 3000 cm/s = 30 m/s
+
+Expected default target material:
+- density: 1600 kg/m3
+- hardness: 0.25
+- cohesion: 0.35
+
+Important: V0.3 intentionally stops ordinary player movement from deforming Earth. Player pressure will be a separate system later.

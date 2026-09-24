@@ -1,0 +1,15 @@
+ProjectX / AMADEUS Gameplay v0.8
+
+- Inner Dimension moved out of SpellCreation into a dedicated InnerRealm module.
+- TAB now switches the player's view target to a fixed meditation-realm camera.
+- Inner realm contains a blank physical plane; the normal gameplay camera/environment are no longer the meditation view.
+- SpellCreation is now data-only.
+- Shape list simplified to Sphere, Cube, Cone.
+- Sphere: radius.
+- Cube: X/Y/Z.
+- Cone: radius/height.
+- Distance, Speed, Mass, Hardness, Toughness, Elasticity retained.
+- Earth defaults preserved; Cohesion/Rigidity stay internal.
+- EarthMagic replaced fragile procedural spell meshes with stable Unreal BasicShapes behind a shape-realization node.
+- Gravity always applies to spawned Earth bodies, including Speed=0 creation.
+- E execution remains in disposable EarthTestHarness.

@@ -1,0 +1,27 @@
+MATERIAL INTERACTION / EARTH SUBTRACTION V0.3.1 - FIX PATCH
+
+WHAT THIS FIXES
+- Projectile collision was visible, but the target-side hit callback could receive the surface normal with the opposite orientation.
+- That made calculated incidence = 0, so the solver produced no removal.
+- Because the old debug line only ran after a successful removal result, no diagnostic text appeared either.
+
+ARCHITECTURAL FIX
+- MaterialInteraction now defines a generic IMaterialImpactReceiver contract.
+- The projectile dispatches its generic FMaterialImpactRequest directly to any receiver it hits.
+- EarthBlockActor implements that receiver without the projectile knowing that the target is Earth.
+- Surface normals are canonicalized to oppose incoming velocity.
+- The projectile ALWAYS prints a diagnostic line on collision.
+
+INSTALL
+1. Close Unreal Editor.
+2. Extract this ZIP into D:\\TESTUNREALPROJECT\\ and merge/replace files.
+3. Reopen TESTUNREALPROJECT.uproject and allow C++ modules to rebuild if asked.
+4. Use Tools -> AMADEUS -> Create 4m Earth Subtraction Target if you need a fresh target.
+5. Press Play, aim at the cube, press E.
+
+EXPECTED DEBUG EXAMPLE
+Impact -> Earth_4m_Subtraction_Target | KE 44.1 kJ | effective 32.5 kJ | remove ... | cutter ... | geometry CHANGED
+
+If it says BOOLEAN FAILED, the physics solver is working and the remaining bug is isolated to the geometry subtraction adapter.
+If it says NO REMOVAL, the remaining bug is isolated to solver/input values.
+If it says target is NOT a MaterialImpactReceiver, the hit target is not the test Earth actor.

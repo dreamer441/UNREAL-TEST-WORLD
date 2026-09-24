@@ -1,0 +1,21 @@
+EARTH FOUNDATION v0.2 + EARTH TEST HARNESS
+
+1. Close Unreal Editor.
+2. Extract this ZIP directly into:
+   D:\TESTUNREALPROJECT\
+3. Allow Windows to merge/replace files.
+4. Reopen TESTUNREALPROJECT.uproject.
+5. Allow Unreal to rebuild the C++ modules if prompted.
+6. In Unreal choose:
+   Tools -> AMADEUS -> Create 4m Earth Projectile Target
+7. Press Play.
+8. Face the 4m block and press E.
+
+Expected:
+- A small sphere projectile launches from the camera.
+- Hitting the top dents downward.
+- Hitting a side dents inward on that side.
+- Hardness/Cohesion/Moisture/Plasticity still modify retained deformation.
+- Running sideways across flat Earth should no longer count as a strong impact merely because horizontal speed is high.
+
+If the project fails to compile, send the first compiler error block, not every repeated error below it.

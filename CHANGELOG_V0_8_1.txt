@@ -1,0 +1,7 @@
+Gameplay v0.8.1 - Inner Realm floor/streaming fix
+
+- Meditation now snapshots and freezes the physical player pawn.
+- CharacterMovement is set to MOVE_None during the Inner Realm, stopping gravity/falling.
+- The exact pre-meditation transform and movement mode are restored when TAB returns to gameplay.
+- Inner Realm presentation is positioned above the player's current XY location instead of at fixed world origin, reducing World Partition streaming side effects.
+- No changes to SpellCreation, EarthMagic, ImpactSystem, or Earth material logic.

@@ -1,0 +1,10 @@
+ProjectX Foundation v0.6
+
+- Added independent SpellCreation runtime module.
+- Added Inner Dimension: TAB switches from physical world to a full-screen blank spell-editing space.
+- Moved projectile sliders out of EarthTestHarness and into SpellCreation.
+- Spell values persist when returning to the physical world.
+- E now casts the stored spell definition.
+- EarthTestHarness is execution-only; it no longer owns spell state/UI.
+- Fixed debug spam from projectiles bouncing/resting on normal ground.
+- Low-speed resting contacts no longer enter the custom material-impact pipeline.

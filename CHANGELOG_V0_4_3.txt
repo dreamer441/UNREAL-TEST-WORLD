@@ -1,0 +1,14 @@
+ProjectX Foundation v0.4.3
+
+- Split ImpactSystem internally into three independent calculation nodes:
+  Energy, Target Response, Source Response.
+- Added explicit impact energy accounting.
+- Added projectile/source fracture capacity, integrity, remaining volume,
+  residual kinetic energy, residual speed, survival, and continuation result.
+- Earth consumes only Target Response and still owns all Earth geometry changes.
+- Test projectile consumes only Source Response and can now survive as a smaller
+  physical remnant instead of always disappearing.
+- High-survival/high-residual-energy projectiles may continue into a sufficiently
+  large/deep newly carved channel.
+- Debug line now reports target absorbed energy, source integrity, and residual energy.
+- No dust/chunk VFX yet; those remain presentation nodes for a later pass.

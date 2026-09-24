@@ -1,0 +1,10 @@
+Gameplay v0.7.3 link fix
+
+Fix: EarthMagic now explicitly links the Unreal PhysicsCore module.
+Reason: EarthSpellBody creates UPhysicalMaterial at runtime. The source compiled, but the DLL could not link Z_Construct_UClass_UPhysicalMaterial without PhysicsCore as a module dependency.
+
+Install:
+1. Close Unreal Editor.
+2. Extract this patch into D:\TESTUNREALPROJECT\ and replace the file when asked.
+3. Run REBUILD_V0_7_3.bat.
+4. Accept Unreal's rebuild prompt if shown.

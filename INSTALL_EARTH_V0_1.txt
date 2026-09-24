@@ -1,0 +1,22 @@
+EARTH FOUNDATION v0.1 - UE 5.8
+
+1. CLOSE Unreal Editor.
+2. Extract this ZIP directly into:
+      D:\TESTUNREALPROJECT\
+3. Allow Windows to merge/replace files.
+4. Open TESTUNREALPROJECT.uproject.
+5. Unreal may say the new EarthFoundation module must be built/rebuilt.
+   Choose YES / BUILD.
+6. When the editor opens:
+      Tools > AMADEUS > Create Deformable Earth Block
+7. The new actor is selected automatically.
+8. To test actual mesh + collision deformation:
+      Tools > AMADEUS > Test Dent Selected Earth Block
+9. Press Play and walk over the dent.
+10. To edit Earth properties:
+      Select Earth_Deformable_Test_Block
+      Details > MaterialState component > Earth | Material > Inline Properties
+
+IMPORTANT:
+The first C++ module build is a one-time transition from a Blueprint-only project to a project with a runtime plugin.
+If Unreal reports a compiler/toolchain error, DO NOT randomly install/change things. Send the exact popup/error back so we can fix the build setup cleanly.

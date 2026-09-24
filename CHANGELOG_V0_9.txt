@@ -1,0 +1,10 @@
+ProjectX Gameplay v0.9
+
+- Added modular PlayerViewModes runtime plugin.
+- Shift toggles Third Person <-> Top Down.
+- Top Down RMB-hold moves character toward the cursor.
+- Top Down LMB-drag orbits the camera around the character; vertical drag adjusts elevation.
+- Mouse wheel up enables sprint; wheel down restores walking speed.
+- Existing Third Person mode is restored cleanly, including movement settings and view target.
+- TAB / InnerRealm has priority and preserves the selected outer-world view mode.
+- EarthTestHarness now uses a generic top-down cursor aim ray so E-cast remains player-based while using the aerial view.
