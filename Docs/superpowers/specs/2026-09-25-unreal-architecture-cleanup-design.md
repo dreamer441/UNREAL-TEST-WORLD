@@ -123,12 +123,13 @@ MaterialCore + PhysicalBody
             └── EarthMagic
                 └── EarthFoundation + ImpactSystem
 
-PlayerViewModes ──> SpellCastingBindings, SpellPreview, SpellExecution
-InnerRealm ───────> SpellCreation, LiveSpellCasting, SpellCastingBindings,
-                     SpellExecution
+PlayerViewModes ──> SpellPreview, SpellExecution
+SpellCastingBindings ──> PlayerViewModes
+InnerRealm ───────> PlayerViewModes, SpellCreation, LiveSpellCasting,
+                     SpellCastingBindings, SpellExecution
 ```
 
-`PlayerViewModes` retains only its intentional dependency on `InnerRealm` to suspend outer-world camera input during TAB. It will no longer call into `SpellCastingBindings`; bindings will observe the public view-mode state instead. This removes magic-input knowledge from the player camera/movement node without changing controls.
+`PlayerViewModes` will expose a narrow public outer-world-input suspension API. `InnerRealm` calls it on TAB entry and exit, so `PlayerViewModes` no longer reads `InnerRealm` directly. It will also no longer call into `SpellCastingBindings`; bindings will observe the public view-mode state instead. This removes magic-input knowledge from the player camera/movement node without creating a circular build dependency.
 
 `InnerRealm` may suspend live input and execution while its editor is open, but it never resolves or executes a spell. `SpellExecution` must not read UI state directly.
 
@@ -221,7 +222,7 @@ No runtime registry, service locator, or factory framework will be introduced. T
 1. Add generic spell contracts and pure shape/body helpers, then redirect old serialized names.
 2. Convert `SpellCreation`, `LiveSpellCasting`, bindings, preview, and EarthMagic to the contracts while preserving every current numeric range and default.
 3. Add `SpellExecution`, move the production SPACE path from `EarthTestHarness`, and expose a structured execution result.
-4. Invert the `PlayerViewModes → SpellCastingBindings` relationship so the camera module does not know magic bindings.
+4. Invert the `PlayerViewModes → InnerRealm` and `PlayerViewModes → SpellCastingBindings` relationships: InnerRealm requests outer-input suspension from the player-view node, while bindings observe the public top-down state.
 5. Enable every active runtime plugin explicitly in the `.uproject`; remove `EarthTestHarness` only after references and a clean build confirm it is unused.
 6. Add focused Unreal Automation tests for pure spell resolution, stage gating, speed zero-state, placement, and impact contracts.
 7. Replace versioned scripts with one `AMADEUS_DEV.bat`; archive historical docs; delete obsolete scripts, logs, ZIPs, and orphan notes after reference checks.
