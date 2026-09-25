@@ -1,9 +1,9 @@
 {
   "FileVersion": 3,
-  "Version": 3,
-  "VersionName": "0.12.0",
+  "Version": 4,
+  "VersionName": "0.13.0",
   "FriendlyName": "Inner Realm",
-  "Description": "Meditation-realm presentation and precise spell-default editor. Key boxes configure live casting; spell data and live session remain separate.",
+  "Description": "Meditation-realm presentation, spell-default editor, and Workbench preview host. Spell data and live session remain separate.",
   "Category": "Gameplay",
   "CreatedBy": "ProjectX",
   "CanContainContent": false,

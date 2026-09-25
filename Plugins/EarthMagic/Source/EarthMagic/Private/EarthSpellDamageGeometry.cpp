@@ -6,12 +6,13 @@
 
 using namespace UE::Geometry;
 
-FDynamicMesh3 FEarthSpellDamageGeometry::Build(const FEarthSpellDefinition& Spell)
+FDynamicMesh3 FEarthSpellDamageGeometry::Build(const FSpellDefinition& Spell)
 {
-    if (Spell.Shape == EEarthSpellShape::Sphere)
+    const FSpellShapeDefinition& Shape = Spell.ShapeDefinition;
+    if (Spell.Shape == ESpellShape::Sphere)
     {
         FSphereGenerator Generator;
-        Generator.Radius = FMath::Max(Spell.SphereRadiusCm, 1.0f);
+        Generator.Radius = FMath::Max(Shape.SphereRadiusCm, 1.0f);
         Generator.NumPhi = 24;
         Generator.NumTheta = 24;
         Generator.bPolygroupPerQuad = false;
@@ -19,15 +20,15 @@ FDynamicMesh3 FEarthSpellDamageGeometry::Build(const FEarthSpellDefinition& Spel
         return FDynamicMesh3(&Generator);
     }
 
-    if (Spell.Shape == EEarthSpellShape::Cube)
+    if (Spell.Shape == ESpellShape::Cube)
     {
         FGridBoxMeshGenerator Generator;
         Generator.Box = FOrientedBox3d(
             FVector3d::Zero(),
             FVector3d(
-                FMath::Max(Spell.CubeXcm, 1.0f) * 0.5,
-                FMath::Max(Spell.CubeYcm, 1.0f) * 0.5,
-                FMath::Max(Spell.CubeZcm, 1.0f) * 0.5));
+                FMath::Max(Shape.CubeXcm, 1.0f) * 0.5,
+                FMath::Max(Shape.CubeYcm, 1.0f) * 0.5,
+                FMath::Max(Shape.CubeZcm, 1.0f) * 0.5));
         Generator.EdgeVertices = FIndex3i(9, 9, 9);
         Generator.bPolygroupPerQuad = false;
         Generator.Generate();
@@ -38,8 +39,8 @@ FDynamicMesh3 FEarthSpellDamageGeometry::Build(const FEarthSpellDefinition& Spel
     // mesh, its bottom cap exists and is usable by a true 3D mesh difference.
     FDynamicMesh3 Cone;
     const int32 Sides = 32;
-    const double Radius = FMath::Max(Spell.ConeRadiusCm, 1.0f);
-    const double Height = FMath::Max(Spell.ConeHeightCm, 1.0f);
+    const double Radius = FMath::Max(Shape.ConeRadiusCm, 1.0f);
+    const double Height = FMath::Max(Shape.ConeHeightCm, 1.0f);
     const int32 Tip = Cone.AppendVertex(FVector3d(0, 0, Height * 0.5));
     const int32 BottomCenter = Cone.AppendVertex(FVector3d(0, 0, -Height * 0.5));
     TArray<int32> Ring;

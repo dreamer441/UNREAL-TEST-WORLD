@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "DynamicMesh/DynamicMesh3.h"
-#include "EarthSpellDefinition.h"
+#include "SpellDefinition.h"
 
 /**
  * Geometry-only realization of the editable Earth volume.
@@ -11,5 +11,5 @@
  */
 struct EARTHMAGIC_API FEarthSpellDamageGeometry
 {
-    static UE::Geometry::FDynamicMesh3 Build(const FEarthSpellDefinition& Spell);
+    static UE::Geometry::FDynamicMesh3 Build(const FSpellDefinition& Spell);
 };

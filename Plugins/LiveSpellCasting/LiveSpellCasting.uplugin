@@ -3,7 +3,7 @@
   "Version": 1,
   "VersionName": "0.12.0",
   "FriendlyName": "Live Spell Casting",
-  "Description": "Transient live spell-construction session and shared cast-placement rules. Does not own input bindings, UI, cameras, or physics.",
+  "Description": "Transient live spell-construction session. Does not own input bindings, UI, placement, cameras, or physics.",
   "Category": "Gameplay",
   "CreatedBy": "ProjectX",
   "CanContainContent": false,

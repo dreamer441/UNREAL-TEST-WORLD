@@ -1,12 +1,12 @@
 #include "SpellCastPlacement.h"
 
-#include "EarthSpellMath.h"
+#include "SpellShapeMath.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 
 bool FSpellCastPlacement::Resolve(
     APlayerController* PlayerController,
-    const FEarthSpellDefinition& Spell,
+    const FResolvedSpell& Spell,
     const FVector& DesiredAimDirection,
     FResolvedSpellCastPlacement& OutPlacement)
 {
@@ -33,11 +33,12 @@ bool FSpellCastPlacement::Resolve(
         PlacementForward.Normalize();
     }
 
-    const FVector HalfExtents = UEarthSpellMath::CalculateHalfExtentsCm(Spell);
+    const FSpellDefinition& Definition = Spell.Definition;
+    const FVector HalfExtents = FSpellShapeMath::CalculateHalfExtentsCm(Definition);
     const float ShapeClearanceCm = FMath::Max(HalfExtents.GetMax(), 20.0f);
     constexpr float CharacterSafetyGapCm = 110.0f;
     constexpr float ChestOffsetCm = 70.0f;
-    const float ExtraDistanceCm = FMath::Max(Spell.DistanceM, 0.0f) * 100.0f;
+    const float ExtraDistanceCm = FMath::Max(Definition.DistanceM, 0.0f) * 100.0f;
 
     OutPlacement.SpawnLocation = Pawn->GetActorLocation()
         + FVector(0.0f, 0.0f, ChestOffsetCm)

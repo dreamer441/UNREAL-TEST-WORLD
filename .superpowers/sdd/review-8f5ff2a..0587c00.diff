@@ -1,0 +1,641 @@
+0587c00 feat: add generic spell definition contracts
+ .../SpellCreation/Config/DefaultSpellCreation.ini  |  3 +
+ .../SpellCreation/Private/EarthSpellMath.cpp       | 67 ++--------------
+ .../Private/SpellCreationSubsystem.cpp             | 35 ++------
+ .../SpellCreation/Private/SpellShapeMath.cpp       | 75 +++++++++++++++++
+ .../Private/Tests/SpellDefinitionTests.cpp         | 93 ++++++++++++++++++++++
+ .../SpellCreation/Public/SpellCreationSubsystem.h  | 13 ++-
+ .../Source/SpellCreation/Public/SpellDefinition.h  | 54 +++++++++++++
+ .../Source/SpellCreation/Public/SpellShapeMath.h   | 13 +++
+ .../Source/SpellCreation/SpellCreation.Build.cs    |  2 +-
+ Plugins/SpellCreation/SpellCreation.uplugin        |  4 +
+ Source/TESTUNREALPROJECT.Target.cs                 | 15 ++++
+ .../Private/TESTUNREALPROJECT.cpp                  |  4 +
+ .../TESTUNREALPROJECT/TESTUNREALPROJECT.Build.cs   | 18 +++++
+ Source/TESTUNREALPROJECTEditor.Target.cs           | 15 ++++
+ TESTUNREALPROJECT.uproject                         |  9 ++-
+ 15 files changed, 330 insertions(+), 90 deletions(-)
+diff --git a/Plugins/SpellCreation/Config/DefaultSpellCreation.ini b/Plugins/SpellCreation/Config/DefaultSpellCreation.ini
+new file mode 100644
+index 0000000..0b897b7
+--- /dev/null
++++ b/Plugins/SpellCreation/Config/DefaultSpellCreation.ini
+@@ -0,0 +1,3 @@
++; No active structural CoreRedirects are safe while the existing reflected
++; FEarthSpellDefinition and EEarthSpellShape types remain compatibility APIs.
++; Flattened legacy fields are converted explicitly by FSpellDefinitionAdapter.
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Private/EarthSpellMath.cpp b/Plugins/SpellCreation/Source/SpellCreation/Private/EarthSpellMath.cpp
+index d94b093..e7ea098 100644
+--- a/Plugins/SpellCreation/Source/SpellCreation/Private/EarthSpellMath.cpp
++++ b/Plugins/SpellCreation/Source/SpellCreation/Private/EarthSpellMath.cpp
+@@ -1,82 +1,29 @@
+ #include "EarthSpellMath.h"
+ 
+-namespace EarthSpellMathPrivate
+-{
+-    static float Cm3ToM3(const float VolumeCm3)
+-    {
+-        return VolumeCm3 / 1000000.0f;
+-    }
+-}
++#include "SpellDefinition.h"
++#include "SpellShapeMath.h"
+ 
+ float UEarthSpellMath::CalculateVolumeM3(const FEarthSpellDefinition& Spell)
+ {
+-    switch (Spell.Shape)
+-    {
+-        case EEarthSpellShape::Sphere:
+-        {
+-            const float RadiusM = FMath::Max(Spell.SphereRadiusCm, 0.5f) * 0.01f;
+-            return (4.0f / 3.0f) * PI * RadiusM * RadiusM * RadiusM;
+-        }
+-        case EEarthSpellShape::Cube:
+-        {
+-            return EarthSpellMathPrivate::Cm3ToM3(
+-                FMath::Max(Spell.CubeXcm, 1.0f) *
+-                FMath::Max(Spell.CubeYcm, 1.0f) *
+-                FMath::Max(Spell.CubeZcm, 1.0f));
+-        }
+-        case EEarthSpellShape::Cone:
+-        default:
+-        {
+-            const float RadiusM = FMath::Max(Spell.ConeRadiusCm, 0.5f) * 0.01f;
+-            const float HeightM = FMath::Max(Spell.ConeHeightCm, 1.0f) * 0.01f;
+-            return (PI * RadiusM * RadiusM * HeightM) / 3.0f;
+-        }
+-    }
++    return FSpellShapeMath::CalculateVolumeM3(FSpellDefinitionAdapter::FromLegacyEarth(Spell));
+ }
+ 
+ float UEarthSpellMath::CalculateDensityKgPerM3(const FEarthSpellDefinition& Spell)
+ {
+-    return FMath::Max(Spell.DensityKgPerM3, 1.0f);
++    return FSpellShapeMath::CalculateDensityKgPerM3(FSpellDefinitionAdapter::FromLegacyEarth(Spell));
+ }
+ 
+ float UEarthSpellMath::CalculateMassKg(const FEarthSpellDefinition& Spell)
+ {
+-    return FMath::Max(CalculateDensityKgPerM3(Spell) * CalculateVolumeM3(Spell), 0.01f);
++    return FSpellShapeMath::CalculateMassKg(FSpellDefinitionAdapter::FromLegacyEarth(Spell));
+ }
+ 
+ float UEarthSpellMath::CalculateContactRadiusCm(const FEarthSpellDefinition& Spell)
+ {
+-    switch (Spell.Shape)
+-    {
+-        case EEarthSpellShape::Sphere:
+-            return FMath::Max(Spell.SphereRadiusCm, 0.5f);
+-        case EEarthSpellShape::Cube:
+-            return 0.5f * FMath::Max(FMath::Max(Spell.CubeYcm, Spell.CubeZcm), 1.0f);
+-        case EEarthSpellShape::Cone:
+-        default:
+-            return FMath::Max(Spell.ConeRadiusCm, 0.5f);
+-    }
++    return FSpellShapeMath::CalculateContactRadiusCm(FSpellDefinitionAdapter::FromLegacyEarth(Spell));
+ }
+ 
+ FVector UEarthSpellMath::CalculateHalfExtentsCm(const FEarthSpellDefinition& Spell)
+ {
+-    switch (Spell.Shape)
+-    {
+-        case EEarthSpellShape::Sphere:
+-        {
+-            const float R = FMath::Max(Spell.SphereRadiusCm, 0.5f);
+-            return FVector(R, R, R);
+-        }
+-        case EEarthSpellShape::Cube:
+-            return FVector(
+-                FMath::Max(Spell.CubeXcm, 1.0f) * 0.5f,
+-                FMath::Max(Spell.CubeYcm, 1.0f) * 0.5f,
+-                FMath::Max(Spell.CubeZcm, 1.0f) * 0.5f);
+-        case EEarthSpellShape::Cone:
+-        default:
+-            return FVector(
+-                FMath::Max(Spell.ConeRadiusCm, 0.5f),
+-                FMath::Max(Spell.ConeRadiusCm, 0.5f),
+-                FMath::Max(Spell.ConeHeightCm, 1.0f) * 0.5f);
+-    }
++    return FSpellShapeMath::CalculateHalfExtentsCm(FSpellDefinitionAdapter::FromLegacyEarth(Spell));
+ }
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Private/SpellCreationSubsystem.cpp b/Plugins/SpellCreation/Source/SpellCreation/Private/SpellCreationSubsystem.cpp
+index c0c68c8..7eaa266 100644
+--- a/Plugins/SpellCreation/Source/SpellCreation/Private/SpellCreationSubsystem.cpp
++++ b/Plugins/SpellCreation/Source/SpellCreation/Private/SpellCreationSubsystem.cpp
+@@ -1,42 +1,23 @@
+ #include "SpellCreationSubsystem.h"
+ 
+-#include "EarthSpellMath.h"
+-
+-namespace SpellCreationNormalization
+-{
+-    static FEarthSpellDefinition Normalize(FEarthSpellDefinition Spell)
+-    {
+-        Spell.SphereRadiusCm = FMath::Max(Spell.SphereRadiusCm, 1.0f);
+-        Spell.CubeXcm = FMath::Max(Spell.CubeXcm, 1.0f);
+-        Spell.CubeYcm = FMath::Max(Spell.CubeYcm, 1.0f);
+-        Spell.CubeZcm = FMath::Max(Spell.CubeZcm, 1.0f);
+-        Spell.ConeRadiusCm = FMath::Max(Spell.ConeRadiusCm, 1.0f);
+-        Spell.ConeHeightCm = FMath::Max(Spell.ConeHeightCm, 1.0f);
+-        Spell.DistanceM = FMath::Max(Spell.DistanceM, 0.0f);
+-        Spell.SpeedMps = FMath::Max(Spell.SpeedMps, 0.0f);
+-        Spell.DensityKgPerM3 = FMath::Max(Spell.DensityKgPerM3, 1.0f);
+-        Spell.Hardness = FMath::Clamp(Spell.Hardness, 0.0f, 1.0f);
+-        Spell.Toughness = FMath::Clamp(Spell.Toughness, 0.0f, 1.0f);
+-        Spell.Elasticity = FMath::Clamp(Spell.Elasticity, 0.0f, 1.0f);
+-        Spell.Cohesion = FMath::Clamp(Spell.Cohesion, 0.0f, 1.0f);
+-        Spell.Rigidity = FMath::Clamp(Spell.Rigidity, 0.0f, 1.0f);
+-        Spell.MassKg = UEarthSpellMath::CalculateMassKg(Spell);
+-        return Spell;
+-    }
+-}
+-
+ void USpellCreationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+ {
+     Super::Initialize(Collection);
+     ResetToDefaultEarthSpell();
+ }
+ 
++void USpellCreationSubsystem::SetStoredGenericSpellDefinition(const FSpellDefinition& NewSpell)
++{
++    StoredGenericSpell = FSpellDefinitionAdapter::Resolve(NewSpell).Definition;
++    StoredSpell = FSpellDefinitionAdapter::ToLegacyEarth(StoredGenericSpell);
++}
++
+ void USpellCreationSubsystem::SetStoredSpellDefinition(const FEarthSpellDefinition& NewSpell)
+ {
+-    StoredSpell = SpellCreationNormalization::Normalize(NewSpell);
++    SetStoredGenericSpellDefinition(FSpellDefinitionAdapter::FromLegacyEarth(NewSpell));
+ }
+ 
+ void USpellCreationSubsystem::ResetToDefaultEarthSpell()
+ {
+-    StoredSpell = SpellCreationNormalization::Normalize(FEarthSpellDefinition());
++    SetStoredSpellDefinition(FEarthSpellDefinition());
+ }
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Private/SpellShapeMath.cpp b/Plugins/SpellCreation/Source/SpellCreation/Private/SpellShapeMath.cpp
+new file mode 100644
+index 0000000..8b4d139
+--- /dev/null
++++ b/Plugins/SpellCreation/Source/SpellCreation/Private/SpellShapeMath.cpp
+@@ -0,0 +1,75 @@
++#include "SpellShapeMath.h"
++#include "EarthSpellDefinition.h"
++
++namespace SpellShapeMathPrivate
++{
++static float Positive(const float Value, const float Minimum, const float Fallback)
++{
++    return FMath::IsFinite(Value) ? FMath::Max(Value, Minimum) : Fallback;
++}
++
++static FSpellDefinition Normalize(FSpellDefinition Spell)
++{
++    const FSpellDefinition Defaults;
++    Spell.ShapeDefinition.SphereRadiusCm = Positive(Spell.ShapeDefinition.SphereRadiusCm, 1.0f, Defaults.ShapeDefinition.SphereRadiusCm);
++    Spell.ShapeDefinition.CubeXcm = Positive(Spell.ShapeDefinition.CubeXcm, 1.0f, Defaults.ShapeDefinition.CubeXcm);
++    Spell.ShapeDefinition.CubeYcm = Positive(Spell.ShapeDefinition.CubeYcm, 1.0f, Defaults.ShapeDefinition.CubeYcm);
++    Spell.ShapeDefinition.CubeZcm = Positive(Spell.ShapeDefinition.CubeZcm, 1.0f, Defaults.ShapeDefinition.CubeZcm);
++    Spell.ShapeDefinition.ConeRadiusCm = Positive(Spell.ShapeDefinition.ConeRadiusCm, 1.0f, Defaults.ShapeDefinition.ConeRadiusCm);
++    Spell.ShapeDefinition.ConeHeightCm = Positive(Spell.ShapeDefinition.ConeHeightCm, 1.0f, Defaults.ShapeDefinition.ConeHeightCm);
++    Spell.DistanceM = Positive(Spell.DistanceM, 0.0f, Defaults.DistanceM);
++    Spell.SpeedMps = Positive(Spell.SpeedMps, 0.0f, Defaults.SpeedMps);
++    Spell.Material.DensityKgPerM3 = Positive(Spell.Material.DensityKgPerM3, 1.0f, Defaults.Material.DensityKgPerM3);
++    Spell.Material.Hardness = FMath::Clamp(Spell.Material.Hardness, 0.0f, 1.0f);
++    Spell.Material.Toughness = FMath::Clamp(Spell.Material.Toughness, 0.0f, 1.0f);
++    Spell.Material.Restitution = FMath::Clamp(Spell.Material.Restitution, 0.0f, 1.0f);
++    Spell.Material.Cohesion = FMath::Clamp(Spell.Material.Cohesion, 0.0f, 1.0f);
++    Spell.Material.Rigidity = FMath::Clamp(Spell.Material.Rigidity, 0.0f, 1.0f);
++    return Spell;
++}
++}
++
++using namespace SpellShapeMathPrivate;
++
++float FSpellShapeMath::CalculateVolumeM3(const FSpellDefinition& Definition)
++{
++    const FSpellShapeDefinition& S = Definition.ShapeDefinition;
++    switch (Definition.Shape)
++    {
++    case ESpellShape::Sphere: { const float R = Positive(S.SphereRadiusCm, .5f, 22.f) * .01f; return 4.f * PI * R * R * R / 3.f; }
++    case ESpellShape::Cube: return Positive(S.CubeXcm, 1.f, 100.f) * Positive(S.CubeYcm, 1.f, 100.f) * Positive(S.CubeZcm, 1.f, 100.f) / 1000000.f;
++    default: { const float R = Positive(S.ConeRadiusCm, .5f, 40.f) * .01f; const float H = Positive(S.ConeHeightCm, 1.f, 120.f) * .01f; return PI * R * R * H / 3.f; }
++    }
++}
++float FSpellShapeMath::CalculateDensityKgPerM3(const FSpellDefinition& D) { return Positive(D.Material.DensityKgPerM3, 1.f, 1600.f); }
++float FSpellShapeMath::CalculateMassKg(const FSpellDefinition& D) { return FMath::Max(CalculateDensityKgPerM3(D) * CalculateVolumeM3(D), .01f); }
++float FSpellShapeMath::CalculateContactRadiusCm(const FSpellDefinition& D)
++{
++    const FSpellShapeDefinition& S = D.ShapeDefinition;
++    return D.Shape == ESpellShape::Sphere ? Positive(S.SphereRadiusCm,.5f,22.f) : D.Shape == ESpellShape::Cube ? .5f * FMath::Max(Positive(S.CubeYcm,1.f,100.f),Positive(S.CubeZcm,1.f,100.f)) : Positive(S.ConeRadiusCm,.5f,40.f);
++}
++FVector FSpellShapeMath::CalculateHalfExtentsCm(const FSpellDefinition& D)
++{
++    const FSpellShapeDefinition& S = D.ShapeDefinition;
++    if (D.Shape == ESpellShape::Sphere) { const double R=Positive(S.SphereRadiusCm,.5f,22.f); return FVector(R, R, R); }
++    if (D.Shape == ESpellShape::Cube) return FVector(
++        static_cast<double>(Positive(S.CubeXcm,1.f,100.f)*.5f),
++        static_cast<double>(Positive(S.CubeYcm,1.f,100.f)*.5f),
++        static_cast<double>(Positive(S.CubeZcm,1.f,100.f)*.5f));
++    const double R=Positive(S.ConeRadiusCm,.5f,40.f); return FVector(R, R, static_cast<double>(Positive(S.ConeHeightCm,1.f,120.f)*.5f));
++}
++FSpellDefinition FSpellDefinitionAdapter::FromLegacyEarth(const FEarthSpellDefinition& L)
++{
++    FSpellDefinition D; D.Shape = L.Shape == EEarthSpellShape::Sphere ? ESpellShape::Sphere : L.Shape == EEarthSpellShape::Cube ? ESpellShape::Cube : ESpellShape::Cone;
++    D.ShapeDefinition={L.SphereRadiusCm,L.CubeXcm,L.CubeYcm,L.CubeZcm,L.ConeRadiusCm,L.ConeHeightCm}; D.DistanceM=L.DistanceM; D.SpeedMps=L.SpeedMps;
++    D.Material.DensityKgPerM3=L.DensityKgPerM3; D.Material.Hardness=L.Hardness; D.Material.Toughness=L.Toughness; D.Material.Restitution=L.Elasticity; D.Material.Cohesion=L.Cohesion; D.Material.Rigidity=L.Rigidity; return D;
++}
++FEarthSpellDefinition FSpellDefinitionAdapter::ToLegacyEarth(const FSpellDefinition& In)
++{
++    const FSpellDefinition D=SpellShapeMathPrivate::Normalize(In); FEarthSpellDefinition L; L.Shape=D.Shape==ESpellShape::Sphere?EEarthSpellShape::Sphere:D.Shape==ESpellShape::Cube?EEarthSpellShape::Cube:EEarthSpellShape::Cone;
++    L.SphereRadiusCm=D.ShapeDefinition.SphereRadiusCm; L.CubeXcm=D.ShapeDefinition.CubeXcm; L.CubeYcm=D.ShapeDefinition.CubeYcm; L.CubeZcm=D.ShapeDefinition.CubeZcm; L.ConeRadiusCm=D.ShapeDefinition.ConeRadiusCm; L.ConeHeightCm=D.ShapeDefinition.ConeHeightCm; L.DistanceM=D.DistanceM; L.SpeedMps=D.SpeedMps; L.DensityKgPerM3=D.Material.DensityKgPerM3; L.Hardness=D.Material.Hardness; L.Toughness=D.Material.Toughness; L.Elasticity=D.Material.Restitution; L.Cohesion=D.Material.Cohesion; L.Rigidity=D.Material.Rigidity; L.MassKg=FSpellShapeMath::CalculateMassKg(D); return L;
++}
++FResolvedSpell FSpellDefinitionAdapter::Resolve(const FSpellDefinition& In)
++{
++    FResolvedSpell R; R.Definition=SpellShapeMathPrivate::Normalize(In); R.Body.Material=R.Definition.Material; R.Body.VolumeM3=FSpellShapeMath::CalculateVolumeM3(R.Definition); R.Body.MassKg=FSpellShapeMath::CalculateMassKg(R.Definition); R.Body.ContactRadiusCm=FSpellShapeMath::CalculateContactRadiusCm(R.Definition); R.Body.VelocityCmS=FVector::ZeroVector; R.Body.bAffectedByGravity=true; return R;
++}
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Private/Tests/SpellDefinitionTests.cpp b/Plugins/SpellCreation/Source/SpellCreation/Private/Tests/SpellDefinitionTests.cpp
+new file mode 100644
+index 0000000..88b4fae
+--- /dev/null
++++ b/Plugins/SpellCreation/Source/SpellCreation/Private/Tests/SpellDefinitionTests.cpp
+@@ -0,0 +1,93 @@
++#include "Misc/AutomationTest.h"
++#include "EarthSpellDefinition.h"
++#include "SpellDefinition.h"
++#include "SpellShapeMath.h"
++
++#if WITH_DEV_AUTOMATION_TESTS
++
++IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpellDefinitionRoundTripTest,
++    "AMADEUS.SpellCreation.LegacyRoundTrip",
++    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
++
++bool FSpellDefinitionRoundTripTest::RunTest(const FString&)
++{
++    FEarthSpellDefinition Legacy;
++    Legacy.Shape = EEarthSpellShape::Cone;
++    Legacy.SphereRadiusCm = 29.0f;
++    Legacy.CubeXcm = 80.0f;
++    Legacy.CubeYcm = 90.0f;
++    Legacy.CubeZcm = 100.0f;
++    Legacy.ConeRadiusCm = 63.0f;
++    Legacy.ConeHeightCm = 180.0f;
++    Legacy.DistanceM = 7.5f;
++    Legacy.SpeedMps = 0.0f;
++    Legacy.DensityKgPerM3 = 1875.0f;
++    Legacy.MassKg = 999.0f;
++    Legacy.Hardness = 0.31f;
++    Legacy.Toughness = 0.40f;
++    Legacy.Elasticity = 0.12f;
++    Legacy.Cohesion = 0.47f;
++    Legacy.Rigidity = 0.66f;
++
++    const FSpellDefinition Generic = FSpellDefinitionAdapter::FromLegacyEarth(Legacy);
++    const FEarthSpellDefinition Restored = FSpellDefinitionAdapter::ToLegacyEarth(Generic);
++    const FResolvedSpell Resolved = FSpellDefinitionAdapter::Resolve(Generic);
++    TestEqual(TEXT("Element"), Generic.Element, ESpellElement::Earth);
++    TestEqual(TEXT("Generic shape"), Generic.Shape, ESpellShape::Cone);
++    TestEqual(TEXT("Generic sphere"), Generic.ShapeDefinition.SphereRadiusCm, Legacy.SphereRadiusCm);
++    TestEqual(TEXT("Generic cube X"), Generic.ShapeDefinition.CubeXcm, Legacy.CubeXcm);
++    TestEqual(TEXT("Generic cube Y"), Generic.ShapeDefinition.CubeYcm, Legacy.CubeYcm);
++    TestEqual(TEXT("Generic cube Z"), Generic.ShapeDefinition.CubeZcm, Legacy.CubeZcm);
++    TestEqual(TEXT("Generic cone radius"), Generic.ShapeDefinition.ConeRadiusCm, Legacy.ConeRadiusCm);
++    TestEqual(TEXT("Generic cone height"), Generic.ShapeDefinition.ConeHeightCm, Legacy.ConeHeightCm);
++    TestEqual(TEXT("Generic distance"), Generic.DistanceM, Legacy.DistanceM);
++    TestEqual(TEXT("Generic speed"), Generic.SpeedMps, Legacy.SpeedMps);
++    TestEqual(TEXT("Generic density"), Generic.Material.DensityKgPerM3, Legacy.DensityKgPerM3);
++    TestEqual(TEXT("Generic hardness"), Generic.Material.Hardness, Legacy.Hardness);
++    TestEqual(TEXT("Generic toughness"), Generic.Material.Toughness, Legacy.Toughness);
++    TestEqual(TEXT("Generic restitution"), Generic.Material.Restitution, Legacy.Elasticity);
++    TestEqual(TEXT("Generic cohesion"), Generic.Material.Cohesion, Legacy.Cohesion);
++    TestEqual(TEXT("Generic rigidity"), Generic.Material.Rigidity, Legacy.Rigidity);
++    TestEqual(TEXT("Shape"), Restored.Shape, Legacy.Shape);
++    TestEqual(TEXT("Sphere"), Restored.SphereRadiusCm, Legacy.SphereRadiusCm);
++    TestEqual(TEXT("Cube X"), Restored.CubeXcm, Legacy.CubeXcm);
++    TestEqual(TEXT("Cube Y"), Restored.CubeYcm, Legacy.CubeYcm);
++    TestEqual(TEXT("Cube Z"), Restored.CubeZcm, Legacy.CubeZcm);
++    TestEqual(TEXT("Cone radius"), Restored.ConeRadiusCm, Legacy.ConeRadiusCm);
++    TestEqual(TEXT("Cone height"), Restored.ConeHeightCm, Legacy.ConeHeightCm);
++    TestEqual(TEXT("Distance"), Restored.DistanceM, Legacy.DistanceM);
++    TestEqual(TEXT("Speed"), Restored.SpeedMps, Legacy.SpeedMps);
++    TestEqual(TEXT("Density"), Restored.DensityKgPerM3, Legacy.DensityKgPerM3);
++    TestEqual(TEXT("Hardness"), Restored.Hardness, Legacy.Hardness);
++    TestEqual(TEXT("Toughness"), Restored.Toughness, Legacy.Toughness);
++    TestEqual(TEXT("Elasticity"), Restored.Elasticity, Legacy.Elasticity);
++    TestEqual(TEXT("Cohesion"), Restored.Cohesion, Legacy.Cohesion);
++    TestEqual(TEXT("Rigidity"), Restored.Rigidity, Legacy.Rigidity);
++    TestTrue(TEXT("Legacy mass is discarded"), !FMath::IsNearlyEqual(Resolved.Body.MassKg, Legacy.MassKg));
++    TestTrue(TEXT("Legacy cache is recalculated"), FMath::IsNearlyEqual(Restored.MassKg, Resolved.Body.MassKg));
++    TestEqual(TEXT("Body material"), Resolved.Body.Material.Toughness, Generic.Material.Toughness);
++    return true;
++}
++
++IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpellDefinitionPhysicalDerivationTest,
++    "AMADEUS.SpellCreation.PhysicalDerivation",
++    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
++
++bool FSpellDefinitionPhysicalDerivationTest::RunTest(const FString&)
++{
++    FSpellDefinition Definition;
++    Definition.Shape = ESpellShape::Sphere;
++    Definition.Material.DensityKgPerM3 = 1600.0f;
++    const FResolvedSpell Resolved = FSpellDefinitionAdapter::Resolve(Definition);
++    const float Volume = FSpellShapeMath::CalculateVolumeM3(Definition);
++    TestTrue(TEXT("Volume derives from shape"), FMath::IsNearlyEqual(Resolved.Body.VolumeM3, Volume));
++    TestTrue(TEXT("Mass derives from density and volume"), FMath::IsNearlyEqual(Resolved.Body.MassKg, 1600.0f * Volume));
++    TestTrue(TEXT("Contact radius derives from shape"), FMath::IsNearlyEqual(Resolved.Body.ContactRadiusCm, FSpellShapeMath::CalculateContactRadiusCm(Definition)));
++    TestTrue(TEXT("Half extents available on demand"), !FSpellShapeMath::CalculateHalfExtentsCm(Definition).IsZero());
++    TestTrue(TEXT("Velocity stays zero"), Resolved.Body.VelocityCmS.IsZero());
++    TestTrue(TEXT("Gravity stays enabled"), Resolved.Body.bAffectedByGravity);
++    TestEqual(TEXT("Generic default toughness"), Definition.Material.Toughness, 0.40f);
++    return true;
++}
++
++#endif
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Public/SpellCreationSubsystem.h b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellCreationSubsystem.h
+index 234402a..7e96d31 100644
+--- a/Plugins/SpellCreation/Source/SpellCreation/Public/SpellCreationSubsystem.h
++++ b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellCreationSubsystem.h
+@@ -1,32 +1,43 @@
+ #pragma once
+ 
+ #include "CoreMinimal.h"
+ #include "Subsystems/WorldSubsystem.h"
+ #include "EarthSpellDefinition.h"
++#include "SpellDefinition.h"
+ #include "SpellCreationSubsystem.generated.h"
+ 
+ /**
+  * Data node for spell construction.
+- * Owns only the stored spell definition and keeps its derived mass coherent.
++ * Owns canonical generic spell data and a synchronized legacy reflected shadow.
+  */
+ UCLASS()
+ class SPELLCREATION_API USpellCreationSubsystem : public UWorldSubsystem
+ {
+     GENERATED_BODY()
+ 
+ public:
+     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+ 
++    UFUNCTION(BlueprintPure, Category="Spell Creation")
++    FSpellDefinition GetStoredGenericSpellDefinition() const { return StoredGenericSpell; }
++
++    UFUNCTION(BlueprintCallable, Category="Spell Creation")
++    void SetStoredGenericSpellDefinition(const FSpellDefinition& NewSpell);
++
+     UFUNCTION(BlueprintPure, Category="Spell Creation")
+     FEarthSpellDefinition GetStoredSpellDefinition() const { return StoredSpell; }
+ 
+     UFUNCTION(BlueprintCallable, Category="Spell Creation")
+     void SetStoredSpellDefinition(const FEarthSpellDefinition& NewSpell);
+ 
+     UFUNCTION(BlueprintCallable, Category="Spell Creation")
+     void ResetToDefaultEarthSpell();
+ 
+ private:
+     UPROPERTY()
+     FEarthSpellDefinition StoredSpell;
++
++    /** Canonical runtime value; StoredSpell retains the original reflected type. */
++    UPROPERTY()
++    FSpellDefinition StoredGenericSpell;
+ };
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Public/SpellDefinition.h b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellDefinition.h
+new file mode 100644
+index 0000000..5856701
+--- /dev/null
++++ b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellDefinition.h
+@@ -0,0 +1,54 @@
++#pragma once
++
++#include "CoreMinimal.h"
++#include "MaterialPhysicalProperties.h"
++#include "PhysicalBodyState.h"
++#include "SpellDefinition.generated.h"
++
++struct FEarthSpellDefinition;
++
++UENUM(BlueprintType)
++enum class ESpellElement : uint8 { Earth };
++
++UENUM(BlueprintType)
++enum class ESpellShape : uint8 { Sphere, Cube, Cone };
++
++USTRUCT(BlueprintType)
++struct SPELLCREATION_API FSpellShapeDefinition
++{
++    GENERATED_BODY()
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Shape") float SphereRadiusCm = 22.0f;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Shape") float CubeXcm = 100.0f;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Shape") float CubeYcm = 100.0f;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Shape") float CubeZcm = 100.0f;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Shape") float ConeRadiusCm = 40.0f;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Shape") float ConeHeightCm = 120.0f;
++};
++
++USTRUCT(BlueprintType)
++struct SPELLCREATION_API FSpellDefinition
++{
++    GENERATED_BODY()
++    FSpellDefinition() { Material.Toughness = 0.40f; }
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") ESpellElement Element = ESpellElement::Earth;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") ESpellShape Shape = ESpellShape::Sphere;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") FSpellShapeDefinition ShapeDefinition;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") FMaterialPhysicalProperties Material;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") float DistanceM = 3.0f;
++    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") float SpeedMps = 30.0f;
++};
++
++USTRUCT(BlueprintType)
++struct SPELLCREATION_API FResolvedSpell
++{
++    GENERATED_BODY()
++    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spell") FSpellDefinition Definition;
++    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Spell") FPhysicalBodyState Body;
++};
++
++struct SPELLCREATION_API FSpellDefinitionAdapter
++{
++    static FSpellDefinition FromLegacyEarth(const FEarthSpellDefinition& Legacy);
++    static FEarthSpellDefinition ToLegacyEarth(const FSpellDefinition& Definition);
++    static FResolvedSpell Resolve(const FSpellDefinition& Definition);
++};
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Public/SpellShapeMath.h b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellShapeMath.h
+new file mode 100644
+index 0000000..86ef7f2
+--- /dev/null
++++ b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellShapeMath.h
+@@ -0,0 +1,13 @@
++#pragma once
++
++#include "CoreMinimal.h"
++#include "SpellDefinition.h"
++
++struct SPELLCREATION_API FSpellShapeMath
++{
++    static float CalculateVolumeM3(const FSpellDefinition& Definition);
++    static float CalculateDensityKgPerM3(const FSpellDefinition& Definition);
++    static float CalculateMassKg(const FSpellDefinition& Definition);
++    static float CalculateContactRadiusCm(const FSpellDefinition& Definition);
++    static FVector CalculateHalfExtentsCm(const FSpellDefinition& Definition);
++};
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/SpellCreation.Build.cs b/Plugins/SpellCreation/Source/SpellCreation/SpellCreation.Build.cs
+index 22e154f..e91edf1 100644
+--- a/Plugins/SpellCreation/Source/SpellCreation/SpellCreation.Build.cs
++++ b/Plugins/SpellCreation/Source/SpellCreation/SpellCreation.Build.cs
+@@ -1,13 +1,13 @@
+ using UnrealBuildTool;
+ 
+ public class SpellCreation : ModuleRules
+ {
+     public SpellCreation(ReadOnlyTargetRules Target) : base(Target)
+     {
+         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+         PublicDependencyModuleNames.AddRange(new string[]
+         {
+-            "Core", "CoreUObject", "Engine"
++            "Core", "CoreUObject", "Engine", "MaterialCore", "PhysicalBody"
+         });
+     }
+ }
+diff --git a/Plugins/SpellCreation/SpellCreation.uplugin b/Plugins/SpellCreation/SpellCreation.uplugin
+index 450ac79..667383d 100644
+--- a/Plugins/SpellCreation/SpellCreation.uplugin
++++ b/Plugins/SpellCreation/SpellCreation.uplugin
+@@ -7,12 +7,16 @@
+   "Category": "Gameplay",
+   "CreatedBy": "ProjectX",
+   "CanContainContent": false,
+   "IsBetaVersion": true,
+   "Modules": [
+     {
+       "Name": "SpellCreation",
+       "Type": "Runtime",
+       "LoadingPhase": "Default"
+     }
++  ],
++  "Plugins": [
++    { "Name": "MaterialCore", "Enabled": true },
++    { "Name": "PhysicalBody", "Enabled": true }
+   ]
+ }
+diff --git a/Source/TESTUNREALPROJECT.Target.cs b/Source/TESTUNREALPROJECT.Target.cs
+new file mode 100644
+index 0000000..78c6d6b
+--- /dev/null
++++ b/Source/TESTUNREALPROJECT.Target.cs
+@@ -0,0 +1,15 @@
++using UnrealBuildTool;
++using System.Collections.Generic;
++
++/** Build target for the playable project. */
++public class TESTUNREALPROJECTTarget : TargetRules
++{
++    public TESTUNREALPROJECTTarget(TargetInfo Target) : base(Target)
++    {
++        Type = TargetType.Game;
++        DefaultBuildSettings = BuildSettingsVersion.V7;
++        IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
++        CppStandard = CppStandardVersion.Cpp20;
++        ExtraModuleNames.AddRange(new string[] { "TESTUNREALPROJECT" });
++    }
++}
+diff --git a/Source/TESTUNREALPROJECT/Private/TESTUNREALPROJECT.cpp b/Source/TESTUNREALPROJECT/Private/TESTUNREALPROJECT.cpp
+new file mode 100644
+index 0000000..10b275a
+--- /dev/null
++++ b/Source/TESTUNREALPROJECT/Private/TESTUNREALPROJECT.cpp
+@@ -0,0 +1,4 @@
++#include "Modules/ModuleManager.h"
++
++/** The project module intentionally owns no gameplay behavior. */
++IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, TESTUNREALPROJECT, "TESTUNREALPROJECT");
+diff --git a/Source/TESTUNREALPROJECT/TESTUNREALPROJECT.Build.cs b/Source/TESTUNREALPROJECT/TESTUNREALPROJECT.Build.cs
+new file mode 100644
+index 0000000..87a1a15
+--- /dev/null
++++ b/Source/TESTUNREALPROJECT/TESTUNREALPROJECT.Build.cs
+@@ -0,0 +1,18 @@
++using UnrealBuildTool;
++
++/** Minimal project module required to build the project's runtime plugins. */
++public class TESTUNREALPROJECT : ModuleRules
++{
++    public TESTUNREALPROJECT(ReadOnlyTargetRules Target) : base(Target)
++    {
++        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
++
++        PublicDependencyModuleNames.AddRange(new string[]
++        {
++            "Core",
++            "CoreUObject",
++            "Engine",
++            "InputCore"
++        });
++    }
++}
+diff --git a/Source/TESTUNREALPROJECTEditor.Target.cs b/Source/TESTUNREALPROJECTEditor.Target.cs
+new file mode 100644
+index 0000000..1b09f28
+--- /dev/null
++++ b/Source/TESTUNREALPROJECTEditor.Target.cs
+@@ -0,0 +1,15 @@
++using UnrealBuildTool;
++using System.Collections.Generic;
++
++/** Build target for the Unreal Editor project. */
++public class TESTUNREALPROJECTEditorTarget : TargetRules
++{
++    public TESTUNREALPROJECTEditorTarget(TargetInfo Target) : base(Target)
++    {
++        Type = TargetType.Editor;
++        DefaultBuildSettings = BuildSettingsVersion.V7;
++        IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
++        CppStandard = CppStandardVersion.Cpp20;
++        ExtraModuleNames.AddRange(new string[] { "TESTUNREALPROJECT" });
++    }
++}
+diff --git a/TESTUNREALPROJECT.uproject b/TESTUNREALPROJECT.uproject
+index 69792c8..2cf0976 100644
+--- a/TESTUNREALPROJECT.uproject
++++ b/TESTUNREALPROJECT.uproject
+@@ -1,15 +1,22 @@
+ {
+   "FileVersion": 3,
+   "EngineAssociation": "5.8",
+   "Category": "",
+   "Description": "",
++  "Modules": [
++    {
++      "Name": "TESTUNREALPROJECT",
++      "Type": "Runtime",
++      "LoadingPhase": "Default"
++    }
++  ],
+   "Plugins": [
+     {
+       "Name": "ModelingToolsEditorMode",
+       "Enabled": true,
+       "TargetAllowList": [
+         "Editor"
+       ]
+     },
+     {
+       "Name": "MaterialCore",
+@@ -45,11 +52,11 @@
+     },
+     {
+       "Name": "PlayerViewModes",
+       "Enabled": true
+     },
+     {
+       "Name": "SpellCastingBindings",
+       "Enabled": true
+     }
+   ]
+-}
+\ No newline at end of file
++}
+

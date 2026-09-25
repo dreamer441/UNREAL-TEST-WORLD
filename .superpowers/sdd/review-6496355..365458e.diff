@@ -1,0 +1,446 @@
+365458e refactor: extract live spell state
+ .../Private/LiveSpellSessionSubsystem.cpp          | 157 ++-------------------
+ .../LiveSpellCasting/Private/LiveSpellState.cpp    |  33 +++++
+ .../Private/Tests/LiveSpellStateTests.cpp          |  24 ++++
+ .../Public/LiveSpellSessionSubsystem.h             |  95 +++----------
+ .../LiveSpellCasting/Public/LiveSpellState.h       |  33 +++++
+ .../LiveSpellCasting/Public/LiveSpellTypes.h       |  17 +++
+ .../SpellCreation/Public/SpellParameterRanges.h    |  16 +++
+ 7 files changed, 151 insertions(+), 224 deletions(-)
+diff --git a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellSessionSubsystem.cpp b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellSessionSubsystem.cpp
+index 76b926f..6952791 100644
+--- a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellSessionSubsystem.cpp
++++ b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellSessionSubsystem.cpp
+@@ -1,150 +1,11 @@
+ #include "LiveSpellSessionSubsystem.h"
+-
+-#include "EarthSpellMath.h"
+-#include "LiveSpellRanges.h"
+ #include "SpellCreationSubsystem.h"
+-
+-void ULiveSpellSessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+-{
+-    Super::Initialize(Collection);
+-    ResetSession();
+-}
+-
+-void ULiveSpellSessionSubsystem::ResetSession()
+-{
+-    Stage = ELiveSpellStage::Empty;
+-    bEarthExplicitlySelected = false;
+-    bHasShapeOverride = false;
+-    ShapeOverride = EEarthSpellShape::Sphere;
+-    ParameterOverrides01.Empty();
+-    ++Generation;
+-}
+-
+-void ULiveSpellSessionSubsystem::SelectEarth()
+-{
+-    // Element is the root of a live construction. Re-selecting/replacing the
+-    // element deliberately clears everything downstream so the hierarchy is
+-    // always rebuilt in order.
+-    bEarthExplicitlySelected = true;
+-    bHasShapeOverride = false;
+-    ShapeOverride = EEarthSpellShape::Sphere;
+-    ParameterOverrides01.Empty();
+-    Stage = ELiveSpellStage::ElementSelected;
+-    ++Generation;
+-}
+-
+-void ULiveSpellSessionSubsystem::SelectShape(const EEarthSpellShape Shape)
+-{
+-    if (!CanSelectShape())
+-    {
+-        return;
+-    }
+-
+-    ShapeOverride = Shape;
+-    bHasShapeOverride = true;
+-
+-    // Changing shape invalidates all modifiers from the previous shape/build.
+-    // The player must deliberately apply modifiers again before casting.
+-    ParameterOverrides01.Empty();
+-    Stage = ELiveSpellStage::ShapeSelected;
+-    ++Generation;
+-}
+-
+-FEarthSpellDefinition ULiveSpellSessionSubsystem::GetPersistentDefaults() const
+-{
+-    UWorld* World = GetWorld();
+-    const USpellCreationSubsystem* SpellCreation = World ? World->GetSubsystem<USpellCreationSubsystem>() : nullptr;
+-    return SpellCreation ? SpellCreation->GetStoredSpellDefinition() : FEarthSpellDefinition();
+-}
+-
+-EEarthSpellShape ULiveSpellSessionSubsystem::GetResolvedShape() const
+-{
+-    return bHasShapeOverride ? ShapeOverride : GetPersistentDefaults().Shape;
+-}
+-
+-void ULiveSpellSessionSubsystem::SetParameterNormalized(const ELiveSpellParameter Parameter, const float NormalizedValue)
+-{
+-    if (!CanApplyModifier())
+-    {
+-        return;
+-    }
+-
+-    ParameterOverrides01.Add(Parameter, FMath::Clamp(NormalizedValue, 0.0f, 1.0f));
+-    Stage = ELiveSpellStage::ModifierActive;
+-}
+-
+-bool ULiveSpellSessionSubsystem::IsParameterActive(const ELiveSpellParameter Parameter) const
+-{
+-    return ParameterOverrides01.Contains(Parameter);
+-}
+-
+-float ULiveSpellSessionSubsystem::GetParameterNormalized(const ELiveSpellParameter Parameter) const
+-{
+-    if (const float* Value = ParameterOverrides01.Find(Parameter))
+-    {
+-        return *Value;
+-    }
+-    return 0.0f;
+-}
+-
+-FEarthSpellDefinition ULiveSpellSessionSubsystem::ResolveSpell() const
+-{
+-    FEarthSpellDefinition Spell = GetPersistentDefaults();
+-
+-    // Live casting treats speed differently from authored TAB defaults.
+-    // A freshly constructed live spell is stationary until the player
+-    // explicitly activates the Speed modifier key for this cast.
+-    Spell.SpeedMps = 0.0f;
+-
+-    if (bHasShapeOverride)
+-    {
+-        Spell.Shape = ShapeOverride;
+-    }
+-
+-    for (const TPair<ELiveSpellParameter, float>& Pair : ParameterOverrides01)
+-    {
+-        const float N = FMath::Clamp(Pair.Value, 0.0f, 1.0f);
+-        switch (Pair.Key)
+-        {
+-            case ELiveSpellParameter::SphereRadius:
+-                Spell.SphereRadiusCm = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinSphereRadiusCm, LiveSpellRanges::MaxSphereRadiusCm);
+-                break;
+-            case ELiveSpellParameter::CubeX:
+-                Spell.CubeXcm = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinCubeSideCm, LiveSpellRanges::MaxCubeSideCm);
+-                break;
+-            case ELiveSpellParameter::CubeY:
+-                Spell.CubeYcm = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinCubeSideCm, LiveSpellRanges::MaxCubeSideCm);
+-                break;
+-            case ELiveSpellParameter::CubeZ:
+-                Spell.CubeZcm = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinCubeSideCm, LiveSpellRanges::MaxCubeSideCm);
+-                break;
+-            case ELiveSpellParameter::ConeRadius:
+-                Spell.ConeRadiusCm = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinConeRadiusCm, LiveSpellRanges::MaxConeRadiusCm);
+-                break;
+-            case ELiveSpellParameter::ConeHeight:
+-                Spell.ConeHeightCm = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinConeHeightCm, LiveSpellRanges::MaxConeHeightCm);
+-                break;
+-            case ELiveSpellParameter::Speed:
+-                Spell.SpeedMps = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinSpeedMps, LiveSpellRanges::MaxSpeedMps);
+-                break;
+-            case ELiveSpellParameter::Density:
+-                Spell.DensityKgPerM3 = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinDensityKgPerM3, LiveSpellRanges::MaxDensityKgPerM3);
+-                break;
+-            case ELiveSpellParameter::Distance:
+-                Spell.DistanceM = LiveSpellRanges::Denormalize(N, LiveSpellRanges::MinDistanceM, LiveSpellRanges::MaxDistanceM);
+-                break;
+-            case ELiveSpellParameter::Hardness:
+-                Spell.Hardness = N;
+-                break;
+-            case ELiveSpellParameter::Toughness:
+-                Spell.Toughness = N;
+-                break;
+-            case ELiveSpellParameter::Elasticity:
+-                Spell.Elasticity = N;
+-                break;
+-        }
+-    }
+-
+-    Spell.MassKg = UEarthSpellMath::CalculateMassKg(Spell);
+-    return Spell;
+-}
++void ULiveSpellSessionSubsystem::Initialize(FSubsystemCollectionBase& Collection) { Super::Initialize(Collection); State.Reset(); }
++void ULiveSpellSessionSubsystem::ResetSession() { State.Reset(); }
++void ULiveSpellSessionSubsystem::SelectEarth() { State.SelectElement(ESpellElement::Earth); }
++void ULiveSpellSessionSubsystem::SelectShape(EEarthSpellShape Shape) { State.SelectShape(Shape == EEarthSpellShape::Sphere ? ESpellShape::Sphere : Shape == EEarthSpellShape::Cube ? ESpellShape::Cube : ESpellShape::Cone); }
++EEarthSpellShape ULiveSpellSessionSubsystem::GetResolvedShape() const { const ESpellShape Shape = State.HasExplicitShape() ? State.GetResolvedShape() : GetPersistentGenericDefaults().Shape; return Shape == ESpellShape::Sphere ? EEarthSpellShape::Sphere : Shape == ESpellShape::Cube ? EEarthSpellShape::Cube : EEarthSpellShape::Cone; }
++void ULiveSpellSessionSubsystem::SetParameterNormalized(ELiveSpellParameter Parameter, float Value) { State.SetParameterNormalized(Parameter, Value); }
++FSpellDefinition ULiveSpellSessionSubsystem::GetPersistentGenericDefaults() const { if (const UWorld* World = GetWorld()) if (const USpellCreationSubsystem* Creation = World->GetSubsystem<USpellCreationSubsystem>()) return Creation->GetStoredGenericSpellDefinition(); return FSpellDefinition(); }
++FResolvedSpell ULiveSpellSessionSubsystem::ResolveGenericSpell() const { return State.Resolve(GetPersistentGenericDefaults()); }
++FEarthSpellDefinition ULiveSpellSessionSubsystem::ResolveSpell() const { return FSpellDefinitionAdapter::ToLegacyEarth(ResolveGenericSpell().Definition); }
+diff --git a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellState.cpp b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellState.cpp
+new file mode 100644
+index 0000000..30a4a9f
+--- /dev/null
++++ b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellState.cpp
+@@ -0,0 +1,33 @@
++#include "LiveSpellState.h"
++#include "SpellParameterRanges.h"
++
++void FLiveSpellState::Reset() { Stage = ELiveSpellStage::Empty; Element.Reset(); Shape.Reset(); ParameterOverrides01.Reset(); ++Generation; }
++void FLiveSpellState::SelectElement(ESpellElement InElement) { Element = InElement; Shape.Reset(); ParameterOverrides01.Reset(); Stage = ELiveSpellStage::ElementSelected; ++Generation; }
++void FLiveSpellState::SelectShape(ESpellShape InShape) { if (!HasElement()) return; Shape = InShape; ParameterOverrides01.Reset(); Stage = ELiveSpellStage::ShapeSelected; ++Generation; }
++void FLiveSpellState::SetParameterNormalized(ELiveSpellParameter Parameter, float Value) { if (!HasExplicitShape()) return; ParameterOverrides01.Add(Parameter, FMath::Clamp(Value, 0.0f, 1.0f)); Stage = ELiveSpellStage::ModifierActive; }
++float FLiveSpellState::GetParameterNormalized(ELiveSpellParameter Parameter) const { return ParameterOverrides01.FindRef(Parameter); }
++
++FResolvedSpell FLiveSpellState::Resolve(const FSpellDefinition& Defaults) const
++{
++    FSpellDefinition Spell = Defaults;
++    if (Element.IsSet()) Spell.Element = Element.GetValue();
++    if (Shape.IsSet()) Spell.Shape = Shape.GetValue();
++    Spell.SpeedMps = 0.0f;
++    auto Apply = [this, &Spell](ELiveSpellParameter P, float& Field, float Min, float Max)
++    {
++        if (const float* Value = ParameterOverrides01.Find(P)) Field = SpellParameterRanges::Denormalize(*Value, Min, Max);
++    };
++    Apply(ELiveSpellParameter::SphereRadius, Spell.ShapeDefinition.SphereRadiusCm, SpellParameterRanges::MinSphereRadiusCm, SpellParameterRanges::MaxSphereRadiusCm);
++    Apply(ELiveSpellParameter::CubeX, Spell.ShapeDefinition.CubeXcm, SpellParameterRanges::MinCubeSideCm, SpellParameterRanges::MaxCubeSideCm);
++    Apply(ELiveSpellParameter::CubeY, Spell.ShapeDefinition.CubeYcm, SpellParameterRanges::MinCubeSideCm, SpellParameterRanges::MaxCubeSideCm);
++    Apply(ELiveSpellParameter::CubeZ, Spell.ShapeDefinition.CubeZcm, SpellParameterRanges::MinCubeSideCm, SpellParameterRanges::MaxCubeSideCm);
++    Apply(ELiveSpellParameter::ConeRadius, Spell.ShapeDefinition.ConeRadiusCm, SpellParameterRanges::MinConeRadiusCm, SpellParameterRanges::MaxConeRadiusCm);
++    Apply(ELiveSpellParameter::ConeHeight, Spell.ShapeDefinition.ConeHeightCm, SpellParameterRanges::MinConeHeightCm, SpellParameterRanges::MaxConeHeightCm);
++    Apply(ELiveSpellParameter::Speed, Spell.SpeedMps, SpellParameterRanges::MinSpeedMps, SpellParameterRanges::MaxSpeedMps);
++    Apply(ELiveSpellParameter::Density, Spell.Material.DensityKgPerM3, SpellParameterRanges::MinDensityKgPerM3, SpellParameterRanges::MaxDensityKgPerM3);
++    Apply(ELiveSpellParameter::Distance, Spell.DistanceM, SpellParameterRanges::MinDistanceM, SpellParameterRanges::MaxDistanceM);
++    Apply(ELiveSpellParameter::Hardness, Spell.Material.Hardness, 0.0f, 1.0f);
++    Apply(ELiveSpellParameter::Toughness, Spell.Material.Toughness, 0.0f, 1.0f);
++    Apply(ELiveSpellParameter::Elasticity, Spell.Material.Restitution, 0.0f, 1.0f);
++    return FSpellDefinitionAdapter::Resolve(Spell);
++}
+diff --git a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/Tests/LiveSpellStateTests.cpp b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/Tests/LiveSpellStateTests.cpp
+new file mode 100644
+index 0000000..70c4257
+--- /dev/null
++++ b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/Tests/LiveSpellStateTests.cpp
+@@ -0,0 +1,24 @@
++#include "Misc/AutomationTest.h"
++#include "LiveSpellState.h"
++
++#if WITH_DEV_AUTOMATION_TESTS
++IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLiveSpellStateGrammarTest, "AMADEUS.LiveSpell.Grammar", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
++bool FLiveSpellStateGrammarTest::RunTest(const FString&)
++{
++    FLiveSpellState State;
++    State.SelectShape(ESpellShape::Sphere);
++    State.SetParameterNormalized(ELiveSpellParameter::Speed, 0.5f);
++    TestFalse(TEXT("Invalid order cannot cast"), State.CanCast());
++    State.SelectElement(ESpellElement::Earth);
++    State.SelectShape(ESpellShape::Sphere);
++    State.SetParameterNormalized(ELiveSpellParameter::Density, 0.5f);
++    TestTrue(TEXT("Valid grammar can cast"), State.CanCast());
++    TestEqual(TEXT("Speed remains zero without speed modifier"), State.Resolve(FSpellDefinition()).Definition.SpeedMps, 0.0f);
++    State.Reset();
++    State.SelectElement(ESpellElement::Earth);
++    State.SelectShape(ESpellShape::Sphere);
++    State.SetParameterNormalized(ELiveSpellParameter::Speed, 0.5f);
++    TestTrue(TEXT("Explicit speed is positive"), State.Resolve(FSpellDefinition()).Definition.SpeedMps > 0.0f);
++    return true;
++}
++#endif
+diff --git a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellSessionSubsystem.h b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellSessionSubsystem.h
+index 3618116..7bf98a7 100644
+--- a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellSessionSubsystem.h
++++ b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellSessionSubsystem.h
+@@ -1,95 +1,38 @@
+ #pragma once
+-
+ #include "CoreMinimal.h"
+ #include "Subsystems/WorldSubsystem.h"
+ #include "EarthSpellDefinition.h"
++#include "LiveSpellState.h"
+ #include "LiveSpellSessionSubsystem.generated.h"
+-
+-/** A live overrideable numeric property. Missing entry = formal live state 0 / use TAB default. */
+-UENUM()
+-enum class ELiveSpellParameter : uint8
+-{
+-    SphereRadius,
+-    CubeX,
+-    CubeY,
+-    CubeZ,
+-    ConeRadius,
+-    ConeHeight,
+-    Speed,
+-    Density,
+-    Distance,
+-    Hardness,
+-    Toughness,
+-    Elasticity
+-};
+-
+-/** Explicit construction hierarchy for live casting. */
+-UENUM()
+-enum class ELiveSpellStage : uint8
+-{
+-    Empty,
+-    ElementSelected,
+-    ShapeSelected,
+-    ModifierActive
+-};
+-
+-/**
+- * One transient live spell construction.
+- *
+- * Construction is intentionally hierarchical:
+- *   Element -> Shape -> Modifier -> Cast
+- *
+- * SpellCreation keeps persistent TAB defaults. This node stores only the
+- * temporary choices made during live casting. Inactive numeric parameters
+- * fall back to persistent TAB defaults, except Speed: live casts always start
+- * at 0 m/s and only gain speed when the Speed modifier is explicitly used.
+- */
+ UCLASS()
+ class LIVESPELLCASTING_API ULiveSpellSessionSubsystem : public UWorldSubsystem
+ {
+     GENERATED_BODY()
+-
+ public:
+     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+-
+     void ResetSession();
+-
+-    ELiveSpellStage GetStage() const { return Stage; }
+-    bool HasConstruction() const { return Stage != ELiveSpellStage::Empty; }
+-    bool HasElement() const { return Stage >= ELiveSpellStage::ElementSelected; }
+-    bool HasExplicitShape() const { return Stage >= ELiveSpellStage::ShapeSelected && bHasShapeOverride; }
+-    bool HasModifier() const { return Stage >= ELiveSpellStage::ModifierActive && ParameterOverrides01.Num() > 0; }
+-    bool CanSelectShape() const { return HasElement(); }
+-    bool CanApplyModifier() const { return HasExplicitShape(); }
+-    bool CanCast() const { return HasElement() && HasExplicitShape() && HasModifier(); }
+-
+-    /** Starts/restarts the construction at the element stage. */
++    ELiveSpellStage GetStage() const { return State.GetStage(); }
++    bool HasConstruction() const { return State.HasConstruction(); }
++    bool HasElement() const { return State.HasElement(); }
++    bool HasExplicitShape() const { return State.HasExplicitShape(); }
++    bool HasModifier() const { return State.HasModifier(); }
++    bool CanSelectShape() const { return State.CanSelectShape(); }
++    bool CanApplyModifier() const { return State.CanApplyModifier(); }
++    bool CanCast() const { return State.CanCast(); }
+     void SelectEarth();
+-    bool IsEarthExplicitlySelected() const { return bEarthExplicitlySelected; }
+-
+-    /** Ignored until an element has been selected. Selecting a shape clears old modifiers. */
++    bool IsEarthExplicitlySelected() const { return State.HasElement(); }
+     void SelectShape(EEarthSpellShape Shape);
+-    bool HasShapeOverride() const { return bHasShapeOverride; }
++    bool HasShapeOverride() const { return State.HasExplicitShape(); }
+     EEarthSpellShape GetResolvedShape() const;
+-
+-    /** Ignored until both element and shape are explicitly selected. */
+     void SetParameterNormalized(ELiveSpellParameter Parameter, float NormalizedValue);
+-    bool IsParameterActive(ELiveSpellParameter Parameter) const;
+-    float GetParameterNormalized(ELiveSpellParameter Parameter) const;
+-
+-    /** Persistent defaults + live overrides. Speed is forced to 0 until explicitly activated. */
++    bool IsParameterActive(ELiveSpellParameter Parameter) const { return State.IsParameterActive(Parameter); }
++    float GetParameterNormalized(ELiveSpellParameter Parameter) const { return State.GetParameterNormalized(Parameter); }
+     FEarthSpellDefinition ResolveSpell() const;
+-
+-    /** Increments whenever construction is reset/consumed/restarted. */
+-    uint32 GetGeneration() const { return Generation; }
+-
++    void SelectElement(ESpellElement Element) { State.SelectElement(Element); }
++    void SelectGenericShape(ESpellShape Shape) { State.SelectShape(Shape); }
++    FResolvedSpell ResolveGenericSpell() const;
++    uint32 GetGeneration() const { return State.GetGeneration(); }
+ private:
+-    ELiveSpellStage Stage = ELiveSpellStage::Empty;
+-    bool bEarthExplicitlySelected = false;
+-    bool bHasShapeOverride = false;
+-    EEarthSpellShape ShapeOverride = EEarthSpellShape::Sphere;
+-    TMap<ELiveSpellParameter, float> ParameterOverrides01;
+-    uint32 Generation = 0;
+-
+-    FEarthSpellDefinition GetPersistentDefaults() const;
++    FLiveSpellState State;
++    FSpellDefinition GetPersistentGenericDefaults() const;
+ };
+diff --git a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellState.h b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellState.h
+new file mode 100644
+index 0000000..42337b0
+--- /dev/null
++++ b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellState.h
+@@ -0,0 +1,33 @@
++#pragma once
++
++#include "CoreMinimal.h"
++#include "LiveSpellTypes.h"
++#include "SpellDefinition.h"
++
++class LIVESPELLCASTING_API FLiveSpellState
++{
++public:
++    void Reset();
++    void SelectElement(ESpellElement Element);
++    void SelectShape(ESpellShape Shape);
++    void SetParameterNormalized(ELiveSpellParameter Parameter, float Value);
++    ELiveSpellStage GetStage() const { return Stage; }
++    bool HasConstruction() const { return Stage != ELiveSpellStage::Empty; }
++    bool HasElement() const { return Element.IsSet(); }
++    bool HasExplicitShape() const { return Shape.IsSet(); }
++    bool HasModifier() const { return ParameterOverrides01.Num() > 0; }
++    bool CanSelectShape() const { return HasElement(); }
++    bool CanApplyModifier() const { return HasExplicitShape(); }
++    bool CanCast() const { return HasElement() && HasExplicitShape() && HasModifier(); }
++    bool IsParameterActive(ELiveSpellParameter Parameter) const { return ParameterOverrides01.Contains(Parameter); }
++    float GetParameterNormalized(ELiveSpellParameter Parameter) const;
++    ESpellShape GetResolvedShape() const { return Shape.Get(ESpellShape::Sphere); }
++    FResolvedSpell Resolve(const FSpellDefinition& Defaults) const;
++    uint32 GetGeneration() const { return Generation; }
++private:
++    ELiveSpellStage Stage = ELiveSpellStage::Empty;
++    TOptional<ESpellElement> Element;
++    TOptional<ESpellShape> Shape;
++    TMap<ELiveSpellParameter, float> ParameterOverrides01;
++    uint32 Generation = 0;
++};
+diff --git a/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellTypes.h b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellTypes.h
+new file mode 100644
+index 0000000..0a911c0
+--- /dev/null
++++ b/Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellTypes.h
+@@ -0,0 +1,17 @@
++#pragma once
++
++#include "CoreMinimal.h"
++#include "LiveSpellTypes.generated.h"
++
++UENUM()
++enum class ELiveSpellParameter : uint8
++{
++    SphereRadius, CubeX, CubeY, CubeZ, ConeRadius, ConeHeight,
++    Speed, Density, Distance, Hardness, Toughness, Elasticity
++};
++
++UENUM()
++enum class ELiveSpellStage : uint8
++{
++    Empty, ElementSelected, ShapeSelected, ModifierActive
++};
+diff --git a/Plugins/SpellCreation/Source/SpellCreation/Public/SpellParameterRanges.h b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellParameterRanges.h
+new file mode 100644
+index 0000000..1d3447c
+--- /dev/null
++++ b/Plugins/SpellCreation/Source/SpellCreation/Public/SpellParameterRanges.h
+@@ -0,0 +1,16 @@
++#pragma once
++
++#include "CoreMinimal.h"
++
++namespace SpellParameterRanges
++{
++    constexpr float MinSphereRadiusCm = 10.0f, MaxSphereRadiusCm = 300.0f;
++    constexpr float MinCubeSideCm = 20.0f, MaxCubeSideCm = 600.0f;
++    constexpr float MinConeRadiusCm = 10.0f, MaxConeRadiusCm = 300.0f;
++    constexpr float MinConeHeightCm = 30.0f, MaxConeHeightCm = 800.0f;
++    constexpr float MinSpeedMps = 0.0f, MaxSpeedMps = 180.0f;
++    constexpr float MinDensityKgPerM3 = 500.0f, MaxDensityKgPerM3 = 4500.0f;
++    constexpr float MinDistanceM = 0.0f, MaxDistanceM = 25.0f;
++    inline float Normalize(float Value, float Min, float Max) { return FMath::Clamp((Value - Min) / FMath::Max(Max - Min, KINDA_SMALL_NUMBER), 0.0f, 1.0f); }
++    inline float Denormalize(float Value, float Min, float Max) { return FMath::Lerp(Min, Max, FMath::Clamp(Value, 0.0f, 1.0f)); }
++}
+

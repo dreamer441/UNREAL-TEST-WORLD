@@ -3,7 +3,7 @@
   "Version": 4,
   "VersionName": "0.11.0",
   "FriendlyName": "Earth Magic",
-  "Description": "Runtime Earth-body realization. Converts stored Earth spell data into stable physical bodies and feeds impacts through ImpactSystem.",
+  "Description": "Runtime Earth-body realization. Converts resolved spell data into stable physical bodies and feeds impacts through ImpactSystem.",
   "Category": "Gameplay",
   "CreatedBy": "ProjectX",
   "CanContainContent": false,

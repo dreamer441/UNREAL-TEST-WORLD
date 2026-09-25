@@ -249,6 +249,8 @@ void UInnerRealmSubsystem::EnterRealm()
 
     CaptureAndFreezePlayer(PC);
     PositionRealmNearPlayer(Realm, PC);
+
+
     ApplyPlayerInputState(true);
     PC->SetViewTargetWithBlend(Realm, 0.15f);
     CreateEditorWidget();
@@ -263,6 +265,7 @@ void UInnerRealmSubsystem::ExitRealm()
 
     UWorld* World = GetWorld();
     APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+
 
     RemoveEditorWidget();
     if (PC)
@@ -640,7 +643,7 @@ void UInnerRealmSubsystem::CreateEditorWidget()
     };
 
     EditorWidget = SNew(SBox)
-        .HAlign(HAlign_Center)
+        .HAlign(HAlign_Left)
         .VAlign(VAlign_Center)
         [
             SNew(SBorder)
@@ -771,6 +774,51 @@ void UInnerRealmSubsystem::CreateEditorWidget()
         ];
 
     GEngine->GameViewport->AddViewportWidgetContent(EditorWidget.ToSharedRef(), 5000);
+
+    PreviewFrameWidget = SNew(SBox)
+        .HAlign(HAlign_Right)
+        .VAlign(VAlign_Center)
+        [
+            SNew(SBox)
+            .WidthOverride(520.0f)
+            .HeightOverride(760.0f)
+            [
+                SNew(SBorder)
+                .Padding(FMargin(16.0f))
+                .BorderBackgroundColor(FLinearColor(0.05f, 0.08f, 0.05f, 0.12f))
+                [
+                    SNew(SVerticalBox)
+
+                    + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 0, 0, 8)
+                    [
+                        SNew(STextBlock)
+                        .ColorAndOpacity(FSlateColor(FLinearColor(0.86f, 0.96f, 0.87f, 1.0f)))
+                        .Text(FText::FromString(TEXT("SPELL WORKBENCH / 3D PREVIEW")))
+                    ]
+
+                    + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+                    [
+                        SNew(STextBlock)
+                        .ColorAndOpacity(FSlateColor(FLinearColor(0.72f, 0.88f, 0.74f, 1.0f)))
+                        .Text_Lambda([this]() { return GetCurrentSpellSummary(); })
+                    ]
+
+                    + SVerticalBox::Slot().FillHeight(1.0f)
+                    [
+                        SNew(SBox)
+                    ]
+
+                    + SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 8, 0, 0)
+                    [
+                        SNew(STextBlock)
+                        .ColorAndOpacity(FSlateColor(FLinearColor(0.78f, 0.90f, 0.80f, 1.0f)))
+                        .Text(FText::FromString(TEXT("Reference mannequin shows spell scale, distance, density grid and speed rings.")))
+                    ]
+                ]
+            ]
+        ];
+
+    GEngine->GameViewport->AddViewportWidgetContent(PreviewFrameWidget.ToSharedRef(), 4999);
 }
 
 void UInnerRealmSubsystem::RemoveEditorWidget()
@@ -779,5 +827,11 @@ void UInnerRealmSubsystem::RemoveEditorWidget()
     {
         GEngine->GameViewport->RemoveViewportWidgetContent(EditorWidget.ToSharedRef());
     }
+    if (PreviewFrameWidget.IsValid() && GEngine && GEngine->GameViewport)
+    {
+        GEngine->GameViewport->RemoveViewportWidgetContent(PreviewFrameWidget.ToSharedRef());
+    }
+
     EditorWidget.Reset();
+    PreviewFrameWidget.Reset();
 }

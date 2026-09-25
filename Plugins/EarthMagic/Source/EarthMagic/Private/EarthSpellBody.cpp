@@ -1,8 +1,8 @@
 #include "EarthSpellBody.h"
 
-#include "EarthSpellMath.h"
 #include "EarthSpellShapeBuilder.h"
 #include "EarthSpellDamageGeometry.h"
+#include "SpellShapeMath.h"
 #include "EarthMaterialComponent.h"
 #include "EarthSubtractionComponent.h"
 #include "ImpactSolver.h"
@@ -80,24 +80,18 @@ void AEarthSpellBody::Tick(float DeltaSeconds)
 
 void AEarthSpellBody::Configure(const FEarthSpellDefinition& InSpell)
 {
-    Spell = InSpell;
-    Spell.SpeedMps = FMath::Max(Spell.SpeedMps, 0.0f);
-    Spell.DistanceM = FMath::Max(Spell.DistanceM, 0.1f);
-    Spell.DensityKgPerM3 = FMath::Max(Spell.DensityKgPerM3, 1.0f);
-    Spell.SphereRadiusCm = FMath::Max(Spell.SphereRadiusCm, 1.0f);
-    Spell.CubeXcm = FMath::Max(Spell.CubeXcm, 1.0f);
-    Spell.CubeYcm = FMath::Max(Spell.CubeYcm, 1.0f);
-    Spell.CubeZcm = FMath::Max(Spell.CubeZcm, 1.0f);
-    Spell.ConeRadiusCm = FMath::Max(Spell.ConeRadiusCm, 1.0f);
-    Spell.ConeHeightCm = FMath::Max(Spell.ConeHeightCm, 1.0f);
-    Spell.Hardness = FMath::Clamp(Spell.Hardness, 0.0f, 1.0f);
-    Spell.Toughness = FMath::Clamp(Spell.Toughness, 0.0f, 1.0f);
-    Spell.Elasticity = FMath::Clamp(Spell.Elasticity, 0.0f, 1.0f);
-    Spell.Cohesion = FMath::Clamp(Spell.Cohesion, 0.0f, 1.0f);
-    Spell.Rigidity = FMath::Clamp(Spell.Rigidity, 0.0f, 1.0f);
-    SolidVolumeM3 = FMath::Max(UEarthSpellMath::CalculateVolumeM3(Spell), 0.000001f);
-    // Construction owns density; total mass follows the realized volume.
-    Spell.MassKg = FMath::Max(Spell.DensityKgPerM3 * SolidVolumeM3, 0.01f);
+    ConfigureResolvedSpell(
+        FSpellDefinitionAdapter::Resolve(FSpellDefinitionAdapter::FromLegacyEarth(InSpell)));
+}
+
+void AEarthSpellBody::ConfigureResolvedSpell(const FResolvedSpell& InSpell)
+{
+    // Re-resolve definitions at the Earth boundary so geometry and body data stay
+    // coherent even if an external caller supplies a stale derived body snapshot.
+    RuntimeSpell = FSpellDefinitionAdapter::Resolve(InSpell.Definition);
+    Spell = FSpellDefinitionAdapter::ToLegacyEarth(RuntimeSpell.Definition);
+    Spell.MassKg = RuntimeSpell.Body.MassKg;
+    SolidVolumeM3 = FMath::Max(RuntimeSpell.Body.VolumeM3, 0.000001f);
 
     RebuildBodyGeometry();
     RefreshMaterialState();
@@ -108,16 +102,10 @@ void AEarthSpellBody::RefreshMaterialState()
 {
     if (!MaterialState) return;
 
-    // ONE authoritative Earth state. This feeds the projectile source and is
-    // also passed to the exact same target solver as the static Earth cube.
+    // Preserve every generic material field for impacts and physical response.
     FMaterialPhysicalProperties& Earth = MaterialState->InlineProperties.Material;
+    Earth = RuntimeSpell.Body.Material;
     Earth.DensityKgPerM3 = GetBodyDensityKgPerM3();
-    Earth.Hardness = Spell.Hardness;
-    Earth.Cohesion = Spell.Cohesion;
-    Earth.Restitution = Spell.Elasticity;
-    Earth.Toughness = Spell.Toughness;
-    Earth.Rigidity = Spell.Rigidity;
-    Earth.Friction = 0.75f;
 }
 
 void AEarthSpellBody::SyncEditableMeshScale()
@@ -138,8 +126,8 @@ void AEarthSpellBody::RebuildBodyGeometry()
     const bool bWasSimulating = BodyMesh->IsSimulatingPhysics();
     if (bWasSimulating) BodyMesh->SetSimulatePhysics(false);
 
-    BodyMesh->SetStaticMesh(FEarthSpellShapeBuilder::ResolveStaticMesh(Spell.Shape));
-    BodyMesh->SetRelativeScale3D(FEarthSpellShapeBuilder::CalculateMeshScale(Spell));
+    BodyMesh->SetStaticMesh(FEarthSpellShapeBuilder::ResolveStaticMesh(RuntimeSpell.Definition.Shape));
+    BodyMesh->SetRelativeScale3D(FEarthSpellShapeBuilder::CalculateMeshScale(RuntimeSpell.Definition));
     BodyMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     BodyMesh->SetCollisionResponseToAllChannels(ECR_Block);
     BodyMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
@@ -170,12 +158,14 @@ void AEarthSpellBody::RefreshPhysicalMaterial()
 
 float AEarthSpellBody::GetBodyVolumeM3() const
 {
-    return SolidVolumeM3 > 0.0f ? SolidVolumeM3 : UEarthSpellMath::CalculateVolumeM3(Spell);
+    return SolidVolumeM3 > 0.0f
+        ? SolidVolumeM3
+        : FMath::Max(RuntimeSpell.Body.VolumeM3, 0.000001f);
 }
 
 float AEarthSpellBody::GetBodyMassKg() const
 {
-    return FMath::Max(Spell.MassKg, 0.01f);
+    return FMath::Max(RuntimeSpell.Body.MassKg, 0.01f);
 }
 
 float AEarthSpellBody::GetBodyDensityKgPerM3() const
@@ -189,10 +179,10 @@ void AEarthSpellBody::Launch(const FVector& Direction)
     RefreshPhysicalMaterial();
 
     ImpactCooldownRemaining = 0.0f;
-    const FVector LaunchVelocity = Direction.GetSafeNormal() * (Spell.SpeedMps * 100.0f);
+    const FVector LaunchVelocity = Direction.GetSafeNormal() * (RuntimeSpell.Definition.SpeedMps * 100.0f);
     LastFreeVelocityCmS = LaunchVelocity;
 
-    BodyMesh->SetEnableGravity(true);
+    BodyMesh->SetEnableGravity(RuntimeSpell.Body.bAffectedByGravity);
     BodyMesh->SetSimulatePhysics(true);
     BodyMesh->SetMassOverrideInKg(NAME_None, GetBodyMassKg(), true);
     BodyMesh->SetPhysicsLinearVelocity(LaunchVelocity);
@@ -217,8 +207,8 @@ bool AEarthSpellBody::BuildImpactRequest_Implementation(const FHitResult& Hit, F
     OutRequest.Source.MassKg = GetBodyMassKg();
     OutRequest.Source.VolumeM3 = GetBodyVolumeM3();
     OutRequest.Source.VelocityCmS = GetIncomingVelocityCmS();
-    OutRequest.Source.ContactRadiusCm = UEarthSpellMath::CalculateContactRadiusCm(Spell);
-    OutRequest.Source.bAffectedByGravity = true;
+    OutRequest.Source.ContactRadiusCm = RuntimeSpell.Body.ContactRadiusCm;
+    OutRequest.Source.bAffectedByGravity = RuntimeSpell.Body.bAffectedByGravity;
     OutRequest.Source.Material = MaterialState
         ? MaterialState->GetMaterialState()
         : FMaterialPhysicalProperties();
@@ -228,7 +218,7 @@ bool AEarthSpellBody::BuildImpactRequest_Implementation(const FHitResult& Hit, F
 void AEarthSpellBody::EnsureEditableMesh()
 {
     if (bHasEditableMesh || !EditableMesh) return;
-    EditableMesh->SetMesh(FEarthSpellDamageGeometry::Build(Spell));
+    EditableMesh->SetMesh(FEarthSpellDamageGeometry::Build(RuntimeSpell.Definition));
     SyncEditableMeshScale();
     EditableMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     EditableMesh->SetMaterial(0, EarthVisualMaterial);
@@ -286,7 +276,9 @@ bool AEarthSpellBody::ReceiveImpact_Implementation(const FImpactRequest& Request
     const float EstimatedLoss = FMath::Min(OutResult.Target.RemovedVolumeM3, OldVolume * 0.95f);
     const float Fraction = FMath::Clamp(1.0f - EstimatedLoss / FMath::Max(OldVolume, 0.000001f), 0.05f, 1.0f);
     SolidVolumeM3 = FMath::Max(OldVolume * Fraction, 0.000001f);
-    Spell.MassKg = FMath::Max(Spell.MassKg * Fraction, 0.01f);
+    RuntimeSpell.Body.VolumeM3 = SolidVolumeM3;
+    RuntimeSpell.Body.MassKg = FMath::Max(RuntimeSpell.Body.MassKg * Fraction, 0.01f);
+    Spell.MassKg = RuntimeSpell.Body.MassKg;
     RefreshMaterialState();
     RefreshPhysicalMaterial();
     if (BodyMesh && BodyMesh->IsSimulatingPhysics())
@@ -303,24 +295,36 @@ void AEarthSpellBody::ScaleBodyAfterDamage(const float RemainingVolumeFraction)
 {
     const float Fraction = FMath::Clamp(RemainingVolumeFraction, 0.001f, 1.0f);
     const float LinearScale = FMath::Pow(Fraction, 1.0f / 3.0f);
-    switch (Spell.Shape)
+    FSpellDefinition& Definition = RuntimeSpell.Definition;
+    switch (Definition.Shape)
     {
-        case EEarthSpellShape::Sphere:
-            Spell.SphereRadiusCm = FMath::Max(Spell.SphereRadiusCm * LinearScale, 1.0f);
+        case ESpellShape::Sphere:
+            Definition.ShapeDefinition.SphereRadiusCm = FMath::Max(
+                Definition.ShapeDefinition.SphereRadiusCm * LinearScale, 1.0f);
             break;
-        case EEarthSpellShape::Cube:
-            Spell.CubeXcm = FMath::Max(Spell.CubeXcm * LinearScale, 1.0f);
-            Spell.CubeYcm = FMath::Max(Spell.CubeYcm * LinearScale, 1.0f);
-            Spell.CubeZcm = FMath::Max(Spell.CubeZcm * LinearScale, 1.0f);
+        case ESpellShape::Cube:
+            Definition.ShapeDefinition.CubeXcm = FMath::Max(
+                Definition.ShapeDefinition.CubeXcm * LinearScale, 1.0f);
+            Definition.ShapeDefinition.CubeYcm = FMath::Max(
+                Definition.ShapeDefinition.CubeYcm * LinearScale, 1.0f);
+            Definition.ShapeDefinition.CubeZcm = FMath::Max(
+                Definition.ShapeDefinition.CubeZcm * LinearScale, 1.0f);
             break;
-        case EEarthSpellShape::Cone:
+        case ESpellShape::Cone:
         default:
-            Spell.ConeRadiusCm = FMath::Max(Spell.ConeRadiusCm * LinearScale, 1.0f);
-            Spell.ConeHeightCm = FMath::Max(Spell.ConeHeightCm * LinearScale, 1.0f);
+            Definition.ShapeDefinition.ConeRadiusCm = FMath::Max(
+                Definition.ShapeDefinition.ConeRadiusCm * LinearScale, 1.0f);
+            Definition.ShapeDefinition.ConeHeightCm = FMath::Max(
+                Definition.ShapeDefinition.ConeHeightCm * LinearScale, 1.0f);
             break;
     }
-    SolidVolumeM3 = FMath::Max(GetBodyVolumeM3() * Fraction, 0.000001f);
-    Spell.MassKg = FMath::Max(Spell.MassKg * Fraction, 0.01f);
+    const float OldVolume = GetBodyVolumeM3();
+    SolidVolumeM3 = FMath::Max(OldVolume * Fraction, 0.000001f);
+    RuntimeSpell.Body.VolumeM3 = SolidVolumeM3;
+    RuntimeSpell.Body.MassKg = FMath::Max(RuntimeSpell.Body.MassKg * Fraction, 0.01f);
+    RuntimeSpell.Body.ContactRadiusCm = FSpellShapeMath::CalculateContactRadiusCm(Definition);
+    Spell = FSpellDefinitionAdapter::ToLegacyEarth(Definition);
+    Spell.MassKg = RuntimeSpell.Body.MassKg;
     ScaleEditableMesh(LinearScale);
     RefreshMaterialState();
 }
@@ -343,7 +347,7 @@ void AEarthSpellBody::ApplySourceOutcome(
     RebuildBodyGeometry();
     RefreshPhysicalMaterial();
 
-    const float SeparationRadiusCm = FMath::Max(UEarthSpellMath::CalculateContactRadiusCm(Spell), 2.0f);
+    const float SeparationRadiusCm = FMath::Max(RuntimeSpell.Body.ContactRadiusCm, 2.0f);
     FVector SurfaceNormal = Result.Contact.SurfaceNormal.GetSafeNormal();
     if (SurfaceNormal.IsNearlyZero()) SurfaceNormal = Hit.ImpactNormal.GetSafeNormal();
     if (SurfaceNormal.IsNearlyZero()) SurfaceNormal = FVector::UpVector;
@@ -366,7 +370,7 @@ void AEarthSpellBody::ApplySourceOutcome(
     }
 
     BodyMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    BodyMesh->SetEnableGravity(true);
+    BodyMesh->SetEnableGravity(RuntimeSpell.Body.bAffectedByGravity);
     BodyMesh->SetSimulatePhysics(true);
     BodyMesh->SetMassOverrideInKg(NAME_None, GetBodyMassKg(), true);
     BodyMesh->SetPhysicsLinearVelocity(Result.Motion.PostImpactVelocityCmS);

@@ -5,6 +5,7 @@
 #include "ImpactProvider.h"
 #include "ImpactReceiver.h"
 #include "EarthSpellDefinition.h"
+#include "SpellDefinition.h"
 #include "EarthSpellBody.generated.h"
 
 class UMaterialInterface;
@@ -34,6 +35,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Earth Magic")
     void Configure(const FEarthSpellDefinition& InSpell);
+
+    /** Generic execution entry point; the reflected Earth spell remains a compatibility shadow. */
+    void ConfigureResolvedSpell(const FResolvedSpell& InSpell);
 
     UFUNCTION(BlueprintCallable, Category="Earth Magic")
     void Launch(const FVector& Direction);
@@ -72,6 +76,9 @@ private:
 
     UPROPERTY(EditAnywhere, Category="Earth Magic")
     FEarthSpellDefinition Spell;
+
+    /** Runtime source of truth for generic geometry, material, and body state. */
+    FResolvedSpell RuntimeSpell;
 
     UPROPERTY(Transient)
     TObjectPtr<UPhysicalMaterial> RuntimePhysicalMaterial;

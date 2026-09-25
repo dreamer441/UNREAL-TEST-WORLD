@@ -7,7 +7,8 @@ public class InnerRealm : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[]
         {
-            "Core", "CoreUObject", "Engine", "InputCore", "Slate", "SlateCore", "SpellCreation", "SpellCastingBindings", "LiveSpellCasting"
+            "Core", "CoreUObject", "Engine", "InputCore", "Slate", "SlateCore",
+            "SpellCreation", "SpellCastingBindings", "LiveSpellCasting"
         });
     }
 }

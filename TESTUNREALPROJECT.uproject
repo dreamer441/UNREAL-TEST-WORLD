@@ -35,7 +35,15 @@
       "Enabled": true
     },
     {
-      "Name": "EarthTestHarness",
+      "Name": "LiveSpellCasting",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellPreview",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellExecution",
       "Enabled": true
     },
     {

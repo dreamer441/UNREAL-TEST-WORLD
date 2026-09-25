@@ -223,11 +223,11 @@ Keep FEarthSpellDefinition and EEarthSpellShape in EarthSpellDefinition.h, mark 
 
 - [ ] **Step 4: Convert SpellCreation storage while preserving its old Blueprint API**
 
-Store FSpellDefinition as the canonical UPROPERTY. Add generic accessors with distinct names and implement old functions as adapters.
+Retain the existing reflected UPROPERTY named StoredSpell with type FEarthSpellDefinition as a synchronized deprecated compatibility shadow. Add a second UPROPERTY named StoredGenericSpell with type FSpellDefinition as the canonical value. Every legacy or generic setter updates both values through FSpellDefinitionAdapter, so existing reflected storage is never retyped in place. Add generic accessors with distinct names and implement old functions as adapters.
 
 ~~~cpp
 UFUNCTION(BlueprintPure, Category="Spell Creation")
-FSpellDefinition GetStoredGenericSpellDefinition() const { return StoredSpell; }
+FSpellDefinition GetStoredGenericSpellDefinition() const { return StoredGenericSpell; }
 
 UFUNCTION(BlueprintCallable, Category="Spell Creation")
 void SetStoredGenericSpellDefinition(const FSpellDefinition& NewSpell);
@@ -235,7 +235,7 @@ void SetStoredGenericSpellDefinition(const FSpellDefinition& NewSpell);
 UFUNCTION(BlueprintPure, Category="Spell Creation")
 FEarthSpellDefinition GetStoredSpellDefinition() const
 {
-    return FSpellDefinitionAdapter::ToLegacyEarth(StoredSpell);
+    return StoredSpell;
 }
 
 UFUNCTION(BlueprintCallable, Category="Spell Creation")

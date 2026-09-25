@@ -38,6 +38,7 @@ public:
 private:
     bool bActive = false;
     TSharedPtr<SWidget> EditorWidget;
+    TSharedPtr<SWidget> PreviewFrameWidget;
     TWeakObjectPtr<AInnerRealmActor> RealmActor;
     TWeakObjectPtr<AActor> PreviousViewTarget;
 

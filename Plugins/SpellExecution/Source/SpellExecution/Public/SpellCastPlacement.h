@@ -1,23 +1,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "EarthSpellDefinition.h"
+#include "SpellDefinition.h"
 
 class APlayerController;
 
-struct LIVESPELLCASTING_API FResolvedSpellCastPlacement
+/** Character-relative realization transform separated from camera-derived aim. */
+struct SPELLEXECUTION_API FResolvedSpellCastPlacement
 {
     FVector SpawnLocation = FVector::ZeroVector;
     FVector LaunchDirection = FVector::ForwardVector;
     FRotator SpawnRotation = FRotator::ZeroRotator;
 };
 
-/** Shared character-relative spawn placement used by both preview and execution. */
-struct LIVESPELLCASTING_API FSpellCastPlacement
+/** Computes a safe character-relative spawn placement for any resolved spell. */
+struct SPELLEXECUTION_API FSpellCastPlacement
 {
     static bool Resolve(
         APlayerController* PlayerController,
-        const FEarthSpellDefinition& Spell,
+        const FResolvedSpell& Spell,
         const FVector& DesiredAimDirection,
         FResolvedSpellCastPlacement& OutPlacement);
 };

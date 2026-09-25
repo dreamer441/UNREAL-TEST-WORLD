@@ -1,13 +1,14 @@
 using UnrealBuildTool;
-public class EarthTestHarness : ModuleRules
+
+public class SpellExecution : ModuleRules
 {
-    public EarthTestHarness(ReadOnlyTargetRules Target) : base(Target)
+    public SpellExecution(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[]
         {
             "Core", "CoreUObject", "Engine", "InputCore",
-            "SpellCreation", "InnerRealm", "EarthMagic", "PlayerViewModes", "LiveSpellCasting"
+            "SpellCreation", "LiveSpellCasting", "PlayerViewModes", "EarthMagic"
         });
     }
 }

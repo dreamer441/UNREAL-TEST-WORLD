@@ -2,10 +2,14 @@
 
 #include "DrawDebugHelpers.h"
 #include "EarthSpellDefinition.h"
+#include "EngineUtils.h"
+#include "InnerRealmActor.h"
+#include "InnerRealmSubsystem.h"
 #include "SpellParameterRanges.h"
 #include "LiveSpellSessionSubsystem.h"
 #include "PlayerViewModeSubsystem.h"
 #include "SpellCastPlacement.h"
+#include "SpellCreationSubsystem.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -15,6 +19,10 @@ namespace
     constexpr float PreviewThickness = 1.8f;
     constexpr float SpeedRingThickness = 3.0f;
 
+    const FColor EarthGreen(60, 220, 95, 105);
+    const FColor SpeedGreen(155, 255, 185, 150);
+    const FColor WorkbenchGuide(95, 155, 105, 95);
+
     int32 GetDensityGridSteps(const FEarthSpellDefinition& Spell)
     {
         const float N = SpellParameterRanges::Normalize(
@@ -22,8 +30,8 @@ namespace
             SpellParameterRanges::MinDensityKgPerM3,
             SpellParameterRanges::MaxDensityKgPerM3);
 
-        // Intentionally visual rather than physical resolution: low density is a
-        // sparse 4-step construction grid, maximum density reaches 15 steps.
+        // Shared visual density language:
+        // low density = sparse construction grid, max density = dense grid.
         return FMath::Clamp(FMath::RoundToInt(FMath::Lerp(4.0f, 15.0f, N)), 4, 15);
     }
 
@@ -35,13 +43,7 @@ namespace
             SpellParameterRanges::MinSpeedMps,
             SpellParameterRanges::MaxSpeedMps);
 
-        // Visual speed language:
-        //   zero -> 0 rings
-        //   low  -> 1 ring
-        //   mid  -> 2 rings
-        //   high -> 3 rings
-        // Use a tiny dead-zone so a nominal zero never renders a stray ring
-        // because of floating-point/slider residue.
+        // 0 speed -> exactly 0 rings.
         if (SpeedMps <= 0.1f || N <= 0.001f)
         {
             return 0;
@@ -103,7 +105,6 @@ namespace
         const FVector Y = RotateLocal(Rotation, FVector::RightVector);
         const FVector Z = RotateLocal(Rotation, FVector::UpVector);
 
-        // Latitude bands.
         for (int32 I = 1; I < GridSteps; ++I)
         {
             const float T = -1.0f + 2.0f * (static_cast<float>(I) / static_cast<float>(GridSteps));
@@ -112,7 +113,6 @@ namespace
             DrawPreviewCircle(World, Center + Z * LocalZ, CircleRadius, X, Y, Color, PreviewThickness);
         }
 
-        // Longitude bands. A half-turn gives all unique great-circle planes.
         for (int32 I = 0; I < GridSteps; ++I)
         {
             const float Angle = PI * static_cast<float>(I) / static_cast<float>(GridSteps);
@@ -131,7 +131,15 @@ namespace
     {
         auto Line = [&](const FVector& A, const FVector& B)
         {
-            DrawDebugLine(World, ToWorld(Center, Rotation, A), ToWorld(Center, Rotation, B), Color, false, 0.0f, 0, PreviewThickness);
+            DrawDebugLine(
+                World,
+                ToWorld(Center, Rotation, A),
+                ToWorld(Center, Rotation, B),
+                Color,
+                false,
+                0.0f,
+                0,
+                PreviewThickness);
         };
 
         for (int32 I = 1; I < GridSteps; ++I)
@@ -176,15 +184,21 @@ namespace
         const FVector Apex = Center + Z * (Height * 0.5f);
         const FVector BaseCenter = Center - Z * (Height * 0.5f);
 
-        // Vertical/radial construction lines.
         for (int32 I = 0; I < GridSteps; ++I)
         {
             const float Angle = 2.0f * PI * static_cast<float>(I) / static_cast<float>(GridSteps);
             const FVector Radial = X * FMath::Cos(Angle) + Y * FMath::Sin(Angle);
-            DrawDebugLine(World, Apex, BaseCenter + Radial * Radius, Color, false, 0.0f, 0, PreviewThickness);
+            DrawDebugLine(
+                World,
+                Apex,
+                BaseCenter + Radial * Radius,
+                Color,
+                false,
+                0.0f,
+                0,
+                PreviewThickness);
         }
 
-        // Horizontal rings grow from apex to base.
         for (int32 I = 1; I <= GridSteps; ++I)
         {
             const float Alpha = static_cast<float>(I) / static_cast<float>(GridSteps);
@@ -210,8 +224,12 @@ namespace
         const FVector Y = RotateLocal(Rotation, FVector::RightVector);
         const FVector Z = RotateLocal(Rotation, FVector::UpVector);
 
-        const float RadiusAroundZ = FMath::Max(FMath::Sqrt(HalfExtents.X * HalfExtents.X + HalfExtents.Y * HalfExtents.Y) * 1.08f, 12.0f);
-        const float RadiusAroundY = FMath::Max(FMath::Sqrt(HalfExtents.X * HalfExtents.X + HalfExtents.Z * HalfExtents.Z) * 1.08f, 12.0f);
+        const float RadiusAroundZ = FMath::Max(
+            FMath::Sqrt(HalfExtents.X * HalfExtents.X + HalfExtents.Y * HalfExtents.Y) * 1.08f,
+            12.0f);
+        const float RadiusAroundY = FMath::Max(
+            FMath::Sqrt(HalfExtents.X * HalfExtents.X + HalfExtents.Z * HalfExtents.Z) * 1.08f,
+            12.0f);
 
         auto OffsetFraction = [RingCount](const int32 Index)
         {
@@ -230,7 +248,6 @@ namespace
         {
             const float Offset = OffsetFraction(I);
 
-            // Ring around local Z axis (XY plane).
             DrawPreviewCircle(
                 World,
                 Center + Z * (HalfExtents.Z * Offset),
@@ -240,7 +257,6 @@ namespace
                 Color,
                 SpeedRingThickness);
 
-            // Ring around local Y axis (XZ plane).
             DrawPreviewCircle(
                 World,
                 Center + Y * (HalfExtents.Y * Offset),
@@ -250,6 +266,83 @@ namespace
                 Color,
                 SpeedRingThickness);
         }
+    }
+
+    float GetShapeForwardClearanceCm(const FEarthSpellDefinition& Spell)
+    {
+        switch (Spell.Shape)
+        {
+            case EEarthSpellShape::Sphere:
+                return FMath::Max(Spell.SphereRadiusCm, 1.0f);
+
+            case EEarthSpellShape::Cube:
+                return FMath::Max(
+                    FMath::Max(Spell.CubeXcm, Spell.CubeYcm),
+                    Spell.CubeZcm) * 0.5f;
+
+            case EEarthSpellShape::Cone:
+            default:
+                return FMath::Max(
+                    FMath::Max(Spell.ConeRadiusCm, Spell.ConeHeightCm * 0.5f),
+                    1.0f);
+        }
+    }
+
+    void DrawSpellVisual(
+        UWorld* World,
+        const FEarthSpellDefinition& Spell,
+        const FVector& Center,
+        const FQuat& Rotation,
+        const bool bRenderSpeedRings)
+    {
+        const int32 DensityGridSteps = GetDensityGridSteps(Spell);
+        FVector PreviewHalfExtents(50.0f);
+
+        switch (Spell.Shape)
+        {
+            case EEarthSpellShape::Sphere:
+            {
+                const float Radius = FMath::Max(Spell.SphereRadiusCm, 1.0f);
+                PreviewHalfExtents = FVector(Radius);
+                DrawSphereDensityGrid(World, Center, Radius, Rotation, DensityGridSteps, EarthGreen);
+                break;
+            }
+
+            case EEarthSpellShape::Cube:
+            {
+                PreviewHalfExtents = FVector(
+                    FMath::Max(Spell.CubeXcm, 1.0f) * 0.5f,
+                    FMath::Max(Spell.CubeYcm, 1.0f) * 0.5f,
+                    FMath::Max(Spell.CubeZcm, 1.0f) * 0.5f);
+
+                DrawDebugBox(
+                    World,
+                    Center,
+                    PreviewHalfExtents,
+                    Rotation,
+                    EarthGreen,
+                    false,
+                    0.0f,
+                    0,
+                    2.5f);
+
+                DrawCubeDensityGrid(World, Center, PreviewHalfExtents, Rotation, DensityGridSteps, EarthGreen);
+                break;
+            }
+
+            case EEarthSpellShape::Cone:
+            default:
+            {
+                const float Height = FMath::Max(Spell.ConeHeightCm, 1.0f);
+                const float Radius = FMath::Max(Spell.ConeRadiusCm, 1.0f);
+                PreviewHalfExtents = FVector(Radius, Radius, Height * 0.5f);
+                DrawConeDensityGrid(World, Center, Radius, Height, Rotation, DensityGridSteps, EarthGreen);
+                break;
+            }
+        }
+
+        const int32 SpeedRingCount = bRenderSpeedRings ? GetSpeedRingCount(Spell) : 0;
+        DrawSpeedBands(World, Center, PreviewHalfExtents, Rotation, SpeedRingCount, SpeedGreen);
     }
 }
 
@@ -266,6 +359,71 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
         return;
     }
 
+    /*
+     * Workbench preview.
+     *
+     * SpellPreview OBSERVES InnerRealm instead of InnerRealm calling back into
+     * SpellPreview. This preserves one-way module dependencies and avoids a
+     * circular plugin graph.
+     */
+    const UInnerRealmSubsystem* InnerRealm = World->GetSubsystem<UInnerRealmSubsystem>();
+    if (InnerRealm && InnerRealm->IsActive())
+    {
+        const USpellCreationSubsystem* SpellCreation = World->GetSubsystem<USpellCreationSubsystem>();
+        AInnerRealmActor* RealmActor = nullptr;
+        for (TActorIterator<AInnerRealmActor> It(World); It; ++It)
+        {
+            RealmActor = *It;
+            break;
+        }
+
+        if (SpellCreation && RealmActor)
+        {
+            const FEarthSpellDefinition Spell = SpellCreation->GetStoredSpellDefinition();
+            const FTransform WorkbenchReferenceTransform = RealmActor->GetPreviewReferenceTransform();
+
+            FVector Forward = WorkbenchReferenceTransform.GetRotation().GetForwardVector();
+            if (Forward.IsNearlyZero())
+            {
+                Forward = FVector::ForwardVector;
+            }
+            Forward.Normalize();
+
+            const FVector ReferenceLocation = WorkbenchReferenceTransform.GetLocation();
+            const float ShapeClearanceCm = GetShapeForwardClearanceCm(Spell);
+
+            // Keep very large authored distances visible inside the Workbench.
+            // The exact value remains visible in the editor text; only the visual
+            // preview distance is compressed after 5 m.
+            const float DisplayDistanceCm = FMath::Clamp(Spell.DistanceM * 100.0f, 0.0f, 500.0f);
+            const FVector PreviewCenter =
+                ReferenceLocation + Forward * (110.0f + ShapeClearanceCm + DisplayDistanceCm);
+
+            DrawDebugLine(
+                World,
+                ReferenceLocation + FVector(0.0f, 0.0f, 25.0f),
+                PreviewCenter,
+                WorkbenchGuide,
+                false,
+                0.0f,
+                0,
+                1.0f);
+
+            // The Workbench reflects the stored/default speed itself. This differs
+            // intentionally from live casting, where rings appear only after the
+            // live Speed modifier has been explicitly activated.
+            DrawSpellVisual(
+                World,
+                Spell,
+                PreviewCenter,
+                WorkbenchReferenceTransform.GetRotation(),
+                Spell.SpeedMps > 0.1f);
+        }
+    }
+
+    /*
+     * Existing live-casting preview.
+     */
     ULiveSpellSessionSubsystem* Session = World->GetSubsystem<ULiveSpellSessionSubsystem>();
     const UPlayerViewModeSubsystem* Views = World->GetSubsystem<UPlayerViewModeSubsystem>();
     APlayerController* PC = World->GetFirstPlayerController();
@@ -275,9 +433,6 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
     {
         return;
     }
-
-    const FColor EarthGreen(60, 220, 95, 105);
-    const FColor SpeedGreen(155, 255, 185, 150);
 
     if (Session->IsEarthExplicitlySelected())
     {
@@ -305,66 +460,14 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
         return;
     }
 
-    const FQuat ShapeRotation = Placement.SpawnRotation.Quaternion();
-    const int32 DensityGridSteps = GetDensityGridSteps(Spell);
+    // Live speed rings are an activation indicator, not a generic readout of
+    // the persistent default speed.
+    const bool bLiveSpeedActive = Session->IsParameterActive(ELiveSpellParameter::Speed);
 
-    FVector PreviewHalfExtents(50.0f);
-
-    switch (Spell.Shape)
-    {
-        case EEarthSpellShape::Sphere:
-        {
-            const float Radius = FMath::Max(Spell.SphereRadiusCm, 1.0f);
-            PreviewHalfExtents = FVector(Radius);
-            DrawSphereDensityGrid(World, Placement.SpawnLocation, Radius, ShapeRotation, DensityGridSteps, EarthGreen);
-            break;
-        }
-
-        case EEarthSpellShape::Cube:
-        {
-            PreviewHalfExtents = FVector(
-                FMath::Max(Spell.CubeXcm, 1.0f) * 0.5f,
-                FMath::Max(Spell.CubeYcm, 1.0f) * 0.5f,
-                FMath::Max(Spell.CubeZcm, 1.0f) * 0.5f);
-
-            DrawDebugBox(
-                World,
-                Placement.SpawnLocation,
-                PreviewHalfExtents,
-                ShapeRotation,
-                EarthGreen,
-                false,
-                0.0f,
-                0,
-                2.5f);
-
-            DrawCubeDensityGrid(World, Placement.SpawnLocation, PreviewHalfExtents, ShapeRotation, DensityGridSteps, EarthGreen);
-            break;
-        }
-
-        case EEarthSpellShape::Cone:
-        default:
-        {
-            const float Height = FMath::Max(Spell.ConeHeightCm, 1.0f);
-            const float Radius = FMath::Max(Spell.ConeRadiusCm, 1.0f);
-            PreviewHalfExtents = FVector(Radius, Radius, Height * 0.5f);
-            DrawConeDensityGrid(World, Placement.SpawnLocation, Radius, Height, ShapeRotation, DensityGridSteps, EarthGreen);
-            break;
-        }
-    }
-
-    // Speed rings are a live-construction indicator, not a generic readout
-    // of a stored/default Speed value. If the Speed modifier has not been
-    // explicitly activated in this live spell, render exactly zero rings.
-    const int32 SpeedRingCount = Session->IsParameterActive(ELiveSpellParameter::Speed)
-        ? GetSpeedRingCount(Spell)
-        : 0;
-
-    DrawSpeedBands(
+    DrawSpellVisual(
         World,
+        Spell,
         Placement.SpawnLocation,
-        PreviewHalfExtents,
-        ShapeRotation,
-        SpeedRingCount,
-        SpeedGreen);
+        Placement.SpawnRotation.Quaternion(),
+        bLiveSpeedActive);
 }

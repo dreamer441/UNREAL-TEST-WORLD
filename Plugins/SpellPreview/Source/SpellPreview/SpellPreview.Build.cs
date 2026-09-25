@@ -7,7 +7,7 @@ public class SpellPreview : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[]
         {
-            "Core", "CoreUObject", "Engine", "SpellCreation", "LiveSpellCasting", "PlayerViewModes"
+            "Core", "CoreUObject", "Engine", "SpellCreation", "LiveSpellCasting", "PlayerViewModes", "InnerRealm", "SpellExecution"
         });
     }
 }

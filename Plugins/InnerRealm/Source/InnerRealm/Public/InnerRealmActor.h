@@ -7,11 +7,15 @@
 class UCameraComponent;
 class UPointLightComponent;
 class USceneComponent;
+class USkeletalMeshComponent;
 class UStaticMeshComponent;
 
 /**
  * Pure presentation actor for the meditation realm.
- * It contains only a fixed camera and a blank physical plane.
+ *
+ * v0.13 Workbench V1 adds a mannequin reference scene on the right side of
+ * the meditation view. The mannequin is presentation-only: it is not the
+ * gameplay pawn and it owns no spell logic.
  */
 UCLASS()
 class INNERREALM_API AInnerRealmActor : public AActor
@@ -20,6 +24,9 @@ class INNERREALM_API AInnerRealmActor : public AActor
 
 public:
     AInnerRealmActor();
+
+    /** Reference frame used by SpellPreview for the Workbench preview. */
+    FTransform GetPreviewReferenceTransform() const;
 
 private:
     UPROPERTY(VisibleAnywhere)
@@ -33,4 +40,12 @@ private:
 
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<UPointLightComponent> RealmLight;
+
+    /** Presentation-only reference transform representing the preview caster. */
+    UPROPERTY(VisibleAnywhere)
+    TObjectPtr<USceneComponent> PreviewReference;
+
+    /** Manny reference model used only for size / placement context. */
+    UPROPERTY(VisibleAnywhere)
+    TObjectPtr<USkeletalMeshComponent> PreviewPlayer;
 };

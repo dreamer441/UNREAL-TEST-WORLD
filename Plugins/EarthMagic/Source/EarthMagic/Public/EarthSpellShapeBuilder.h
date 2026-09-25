@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "EarthSpellDefinition.h"
+#include "SpellDefinition.h"
 
 class UStaticMesh;
 
@@ -13,6 +13,6 @@ class UStaticMesh;
  */
 struct EARTHMAGIC_API FEarthSpellShapeBuilder
 {
-    static UStaticMesh* ResolveStaticMesh(EEarthSpellShape Shape);
-    static FVector CalculateMeshScale(const FEarthSpellDefinition& Spell);
+    static UStaticMesh* ResolveStaticMesh(ESpellShape Shape);
+    static FVector CalculateMeshScale(const FSpellDefinition& Spell);
 };
