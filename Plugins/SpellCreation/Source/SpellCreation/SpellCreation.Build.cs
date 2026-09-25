@@ -7,7 +7,7 @@ public class SpellCreation : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[]
         {
-            "Core", "CoreUObject", "Engine"
+            "Core", "CoreUObject", "Engine", "MaterialCore", "PhysicalBody"
         });
     }
 }
