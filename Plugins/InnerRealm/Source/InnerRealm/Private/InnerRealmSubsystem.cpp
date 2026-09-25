@@ -2,7 +2,7 @@
 
 #include "InnerRealmActor.h"
 #include "EarthSpellMath.h"
-#include "LiveSpellRanges.h"
+#include "SpellParameterRanges.h"
 #include "LiveSpellSessionSubsystem.h"
 #include "SpellCreationSubsystem.h"
 #include "SpellCastingBindingSubsystem.h"
@@ -32,24 +32,24 @@ namespace InnerRealmEditor
         switch (Shape)
         {
             case EEarthSpellShape::Sphere:
-                OutMin = LiveSpellRanges::MinSphereRadiusCm;
-                OutMax = LiveSpellRanges::MaxSphereRadiusCm;
+                OutMin = SpellParameterRanges::MinSphereRadiusCm;
+                OutMax = SpellParameterRanges::MaxSphereRadiusCm;
                 break;
             case EEarthSpellShape::Cube:
-                OutMin = LiveSpellRanges::MinCubeSideCm;
-                OutMax = LiveSpellRanges::MaxCubeSideCm;
+                OutMin = SpellParameterRanges::MinCubeSideCm;
+                OutMax = SpellParameterRanges::MaxCubeSideCm;
                 break;
             case EEarthSpellShape::Cone:
             default:
                 if (Index == 0)
                 {
-                    OutMin = LiveSpellRanges::MinConeRadiusCm;
-                    OutMax = LiveSpellRanges::MaxConeRadiusCm;
+                    OutMin = SpellParameterRanges::MinConeRadiusCm;
+                    OutMax = SpellParameterRanges::MaxConeRadiusCm;
                 }
                 else
                 {
-                    OutMin = LiveSpellRanges::MinConeHeightCm;
-                    OutMax = LiveSpellRanges::MaxConeHeightCm;
+                    OutMin = SpellParameterRanges::MinConeHeightCm;
+                    OutMax = SpellParameterRanges::MaxConeHeightCm;
                 }
                 break;
         }
@@ -393,17 +393,17 @@ void UInnerRealmSubsystem::ApplyPlayerInputState(const bool bEntering)
 
 float UInnerRealmSubsystem::GetSpeedSlider() const
 {
-    return LiveSpellRanges::Normalize(ReadSpell().SpeedMps, LiveSpellRanges::MinSpeedMps, LiveSpellRanges::MaxSpeedMps);
+    return SpellParameterRanges::Normalize(ReadSpell().SpeedMps, SpellParameterRanges::MinSpeedMps, SpellParameterRanges::MaxSpeedMps);
 }
 
 float UInnerRealmSubsystem::GetDistanceSlider() const
 {
-    return LiveSpellRanges::Normalize(ReadSpell().DistanceM, LiveSpellRanges::MinDistanceM, LiveSpellRanges::MaxDistanceM);
+    return SpellParameterRanges::Normalize(ReadSpell().DistanceM, SpellParameterRanges::MinDistanceM, SpellParameterRanges::MaxDistanceM);
 }
 
 float UInnerRealmSubsystem::GetDensitySlider() const
 {
-    return LiveSpellRanges::Normalize(ReadSpell().DensityKgPerM3, LiveSpellRanges::MinDensityKgPerM3, LiveSpellRanges::MaxDensityKgPerM3);
+    return SpellParameterRanges::Normalize(ReadSpell().DensityKgPerM3, SpellParameterRanges::MinDensityKgPerM3, SpellParameterRanges::MaxDensityKgPerM3);
 }
 
 float UInnerRealmSubsystem::GetHardnessSlider() const { return ReadSpell().Hardness; }
@@ -413,21 +413,21 @@ float UInnerRealmSubsystem::GetElasticitySlider() const { return ReadSpell().Ela
 void UInnerRealmSubsystem::SetSpeedSlider(const float Value)
 {
     FEarthSpellDefinition Spell = ReadSpell();
-    Spell.SpeedMps = LiveSpellRanges::Denormalize(Value, LiveSpellRanges::MinSpeedMps, LiveSpellRanges::MaxSpeedMps);
+    Spell.SpeedMps = SpellParameterRanges::Denormalize(Value, SpellParameterRanges::MinSpeedMps, SpellParameterRanges::MaxSpeedMps);
     WriteSpell(Spell);
 }
 
 void UInnerRealmSubsystem::SetDistanceSlider(const float Value)
 {
     FEarthSpellDefinition Spell = ReadSpell();
-    Spell.DistanceM = LiveSpellRanges::Denormalize(Value, LiveSpellRanges::MinDistanceM, LiveSpellRanges::MaxDistanceM);
+    Spell.DistanceM = SpellParameterRanges::Denormalize(Value, SpellParameterRanges::MinDistanceM, SpellParameterRanges::MaxDistanceM);
     WriteSpell(Spell);
 }
 
 void UInnerRealmSubsystem::SetDensitySlider(const float Value)
 {
     FEarthSpellDefinition Spell = ReadSpell();
-    Spell.DensityKgPerM3 = LiveSpellRanges::Denormalize(Value, LiveSpellRanges::MinDensityKgPerM3, LiveSpellRanges::MaxDensityKgPerM3);
+    Spell.DensityKgPerM3 = SpellParameterRanges::Denormalize(Value, SpellParameterRanges::MinDensityKgPerM3, SpellParameterRanges::MaxDensityKgPerM3);
     WriteSpell(Spell);
 }
 
@@ -469,7 +469,7 @@ float UInnerRealmSubsystem::GetDimensionSlider(const int32 Index) const
     float Min = 0.0f;
     float Max = 1.0f;
     InnerRealmEditor::GetDimensionRange(Spell.Shape, Index, Min, Max);
-    return LiveSpellRanges::Normalize(Value, Min, Max);
+    return SpellParameterRanges::Normalize(Value, Min, Max);
 }
 
 void UInnerRealmSubsystem::SetDimensionSlider(const int32 Index, const float SliderValue)
@@ -478,7 +478,7 @@ void UInnerRealmSubsystem::SetDimensionSlider(const int32 Index, const float Sli
     float Min = 0.0f;
     float Max = 1.0f;
     InnerRealmEditor::GetDimensionRange(Spell.Shape, Index, Min, Max);
-    const float Value = LiveSpellRanges::Denormalize(SliderValue, Min, Max);
+    const float Value = SpellParameterRanges::Denormalize(SliderValue, Min, Max);
 
     if (Spell.Shape == EEarthSpellShape::Sphere)
     {

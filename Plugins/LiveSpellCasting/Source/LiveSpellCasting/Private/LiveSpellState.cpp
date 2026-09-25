@@ -1,10 +1,36 @@
 #include "LiveSpellState.h"
 #include "SpellParameterRanges.h"
 
+namespace
+{
+    /** Keeps corrupted or future enum values from becoming cast-valid modifiers. */
+    bool IsSupportedParameter(const ELiveSpellParameter Parameter)
+    {
+        switch (Parameter)
+        {
+        case ELiveSpellParameter::SphereRadius:
+        case ELiveSpellParameter::CubeX:
+        case ELiveSpellParameter::CubeY:
+        case ELiveSpellParameter::CubeZ:
+        case ELiveSpellParameter::ConeRadius:
+        case ELiveSpellParameter::ConeHeight:
+        case ELiveSpellParameter::Speed:
+        case ELiveSpellParameter::Density:
+        case ELiveSpellParameter::Distance:
+        case ELiveSpellParameter::Hardness:
+        case ELiveSpellParameter::Toughness:
+        case ELiveSpellParameter::Elasticity:
+            return true;
+        default:
+            return false;
+        }
+    }
+}
+
 void FLiveSpellState::Reset() { Stage = ELiveSpellStage::Empty; Element.Reset(); Shape.Reset(); ParameterOverrides01.Reset(); ++Generation; }
 void FLiveSpellState::SelectElement(ESpellElement InElement) { Element = InElement; Shape.Reset(); ParameterOverrides01.Reset(); Stage = ELiveSpellStage::ElementSelected; ++Generation; }
 void FLiveSpellState::SelectShape(ESpellShape InShape) { if (!HasElement()) return; Shape = InShape; ParameterOverrides01.Reset(); Stage = ELiveSpellStage::ShapeSelected; ++Generation; }
-void FLiveSpellState::SetParameterNormalized(ELiveSpellParameter Parameter, float Value) { if (!HasExplicitShape()) return; ParameterOverrides01.Add(Parameter, FMath::Clamp(Value, 0.0f, 1.0f)); Stage = ELiveSpellStage::ModifierActive; }
+void FLiveSpellState::SetParameterNormalized(ELiveSpellParameter Parameter, float Value) { if (!HasExplicitShape() || !IsSupportedParameter(Parameter)) return; ParameterOverrides01.Add(Parameter, FMath::Clamp(Value, 0.0f, 1.0f)); Stage = ELiveSpellStage::ModifierActive; }
 float FLiveSpellState::GetParameterNormalized(ELiveSpellParameter Parameter) const { return ParameterOverrides01.FindRef(Parameter); }
 
 FResolvedSpell FLiveSpellState::Resolve(const FSpellDefinition& Defaults) const

@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 
-/** Hold-time feel only. Physical/editor ranges live in LiveSpellCasting/LiveSpellRanges.h. */
+/** Hold-time feel only. Physical/editor ranges live in SpellCreation/SpellParameterRanges.h. */
 namespace LiveSpellTuning
 {
     constexpr float FullChargeSeconds = 3.0f;

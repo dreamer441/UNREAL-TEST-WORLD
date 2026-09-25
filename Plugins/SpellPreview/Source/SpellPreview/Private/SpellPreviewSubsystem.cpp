@@ -2,7 +2,7 @@
 
 #include "DrawDebugHelpers.h"
 #include "EarthSpellDefinition.h"
-#include "LiveSpellRanges.h"
+#include "SpellParameterRanges.h"
 #include "LiveSpellSessionSubsystem.h"
 #include "PlayerViewModeSubsystem.h"
 #include "SpellCastPlacement.h"
@@ -17,10 +17,10 @@ namespace
 
     int32 GetDensityGridSteps(const FEarthSpellDefinition& Spell)
     {
-        const float N = LiveSpellRanges::Normalize(
+        const float N = SpellParameterRanges::Normalize(
             Spell.DensityKgPerM3,
-            LiveSpellRanges::MinDensityKgPerM3,
-            LiveSpellRanges::MaxDensityKgPerM3);
+            SpellParameterRanges::MinDensityKgPerM3,
+            SpellParameterRanges::MaxDensityKgPerM3);
 
         // Intentionally visual rather than physical resolution: low density is a
         // sparse 4-step construction grid, maximum density reaches 15 steps.
@@ -30,10 +30,10 @@ namespace
     int32 GetSpeedRingCount(const FEarthSpellDefinition& Spell)
     {
         const float SpeedMps = FMath::Max(Spell.SpeedMps, 0.0f);
-        const float N = LiveSpellRanges::Normalize(
+        const float N = SpellParameterRanges::Normalize(
             SpeedMps,
-            LiveSpellRanges::MinSpeedMps,
-            LiveSpellRanges::MaxSpeedMps);
+            SpellParameterRanges::MinSpeedMps,
+            SpellParameterRanges::MaxSpeedMps);
 
         // Visual speed language:
         //   zero -> 0 rings
