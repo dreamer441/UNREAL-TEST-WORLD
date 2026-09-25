@@ -17,12 +17,13 @@
 - New gameplay logic belongs in focused modules. Do not introduce a global registry, reflective discovery, singleton service locator, or broad runtime scan.
 - Preserve the live grammar exactly: Empty -> ElementSelected -> ShapeSelected -> ModifierActive -> Cast; SPACE is inert until the ModifierActive gate is met.
 - Preserve the existing default Earth values, including Toughness 0.40, and keep live SpeedMps at 0 until a Speed modifier is explicitly activated.
-- Preserve current Blueprints and serialized compatibility by retaining FEarthSpellDefinition, EEarthSpellShape, UEarthSpellMath, and existing Blueprint-callable subsystem entry points as deprecated adapters. Do not add unsafe structural CoreRedirects from flattened Earth data to nested generic data.
+- Preserve current Blueprints and serialized compatibility by retaining FEarthSpellDefinition, EEarthSpellShape, UEarthSpellMath, AEarthSpellBody::Configure(const FEarthSpellDefinition&), and existing Blueprint-callable subsystem entry points as deprecated adapters. Do not replace existing reflected FEarthSpellDefinition properties in place.
 - Put any future safe name-only redirect in tracked Plugins/SpellCreation/Config/DefaultSpellCreation.ini, never in the ignored machine-local Config/DefaultEngine.ini. The current compatibility-adapter migration needs no active redirect because old reflected names remain.
 - Keep runtime output quiet by default. Diagnostics must use normal Unreal logging and be useful only for failures; no per-tick logging or debug drawing.
 - Do not modify Content assets or DefaultInput.ini. Keep the Space mapping and continue suppressing template jumping through PlayerViewModes at runtime.
 - Keep Config/DefaultEngine.ini ignored because it contains machine-specific credentials; maintain only Config/DefaultEngine.template.ini in Git.
 - Generated Binaries, Intermediate, DerivedDataCache, Saved, PluginBuild, IDE state, logs, archives, and Python caches remain ignored and are never staged.
+- PlayerViewModes and SpellExecution suspension APIs use balanced reference counts so a nested caller cannot prematurely restore game input or casting.
 
 ---
 
@@ -33,7 +34,8 @@
 | Plugins/SpellCreation/Source/SpellCreation/Public/SpellDefinition.h | Generic reflected element, shape, authored-definition, resolved-definition, and explicit legacy conversion contracts. |
 | Plugins/SpellCreation/Source/SpellCreation/Public/SpellShapeMath.h and Private/SpellShapeMath.cpp | Generic shape volume and size math used to derive physical body state. |
 | Plugins/SpellCreation/Source/SpellCreation/Public/SpellParameterRanges.h | Shared normalized-value ranges formerly owned by LiveSpellCasting. |
-| Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellState.h and Private/LiveSpellState.cpp | Pure, engine-independent transient casting grammar and override state. |
+| Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellTypes.h | Reflected live-stage and live-parameter types shared by the state object and world-subsystem adapter. |
+| Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellState.h and Private/LiveSpellState.cpp | Plain-C++ transient casting grammar and override state, without world, controller, or UObject state. |
 | Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellSessionSubsystem.h and Private/LiveSpellSessionSubsystem.cpp | Thin world-subsystem adapter around FLiveSpellState. |
 | Plugins/SpellExecution/ | New production-only input, placement, cast result, and element dispatch module. |
 | Plugins/EarthMagic/Source/EarthMagic/Public/EarthSpellSpawner.h and Private/EarthSpellSpawner.cpp | Earth realization adapter called only by SpellExecution. |
@@ -50,10 +52,10 @@
 SpellCreation -> MaterialCore, PhysicalBody
 LiveSpellCasting -> SpellCreation
 PlayerViewModes -> Engine only
-SpellCastingBindings -> LiveSpellCasting, PlayerViewModes
-SpellPreview -> LiveSpellCasting, PlayerViewModes, SpellExecution
-EarthMagic -> SpellCreation, LiveSpellCasting
-SpellExecution -> LiveSpellCasting, PlayerViewModes, EarthMagic
+SpellCastingBindings -> SpellCreation, LiveSpellCasting, PlayerViewModes
+SpellPreview -> SpellCreation, LiveSpellCasting, PlayerViewModes, SpellExecution
+EarthMagic -> SpellCreation, MaterialCore, PhysicalBody, ImpactSystem, EarthFoundation
+SpellExecution -> SpellCreation, LiveSpellCasting, PlayerViewModes, EarthMagic
 InnerRealm -> SpellCreation, LiveSpellCasting, SpellCastingBindings,
               PlayerViewModes, SpellExecution
 ~~~
@@ -83,7 +85,7 @@ The arrow means "depends on." In particular, PlayerViewModes must not depend on 
 
 - [ ] **Step 1: Write the failing automation tests for conversion and physical derivation**
 
-Create Plugins/SpellCreation/Source/SpellCreation/Private/Tests/SpellDefinitionTests.cpp with tests that construct a non-default FEarthSpellDefinition, convert it to FSpellDefinition, convert it back, and verify every mapped field. Add a second test that resolves a sphere with DensityKgPerM3 1600.0 and asserts that MassKg equals density times FSpellShapeMath::GetVolumeM3().
+Create Plugins/SpellCreation/Source/SpellCreation/Private/Tests/SpellDefinitionTests.cpp with tests that construct a non-default FEarthSpellDefinition, convert it to FSpellDefinition, convert it back, and verify every mapped field. Add a second test that resolves a sphere with DensityKgPerM3 1600.0 and asserts that MassKg equals density times FSpellShapeMath::CalculateVolumeM3().
 
 ~~~cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpellDefinitionRoundTripTest,
@@ -99,6 +101,7 @@ bool FSpellDefinitionRoundTripTest::RunTest(const FString&)
     Legacy.DistanceM = 7.5f;
     Legacy.SpeedMps = 0.0f;
     Legacy.DensityKgPerM3 = 1875.0f;
+    Legacy.MassKg = 999.0f;
     Legacy.Hardness = 0.31f;
     Legacy.Toughness = 0.40f;
     Legacy.Elasticity = 0.12f;
@@ -107,26 +110,52 @@ bool FSpellDefinitionRoundTripTest::RunTest(const FString&)
 
     const FSpellDefinition Generic = FSpellDefinitionAdapter::FromLegacyEarth(Legacy);
     const FEarthSpellDefinition Restored = FSpellDefinitionAdapter::ToLegacyEarth(Generic);
+    const FResolvedSpell Resolved = FSpellDefinitionAdapter::Resolve(Generic);
+    TestEqual(TEXT("Element"), Generic.Element, ESpellElement::Earth);
+    TestEqual(TEXT("Generic shape"), Generic.Shape, ESpellShape::Cone);
+    TestEqual(TEXT("Generic cone radius"), Generic.ShapeDefinition.ConeRadiusCm, Legacy.ConeRadiusCm);
+    TestEqual(TEXT("Generic cone height"), Generic.ShapeDefinition.ConeHeightCm, Legacy.ConeHeightCm);
+    TestEqual(TEXT("Generic hardness"), Generic.Material.Hardness, Legacy.Hardness);
+    TestEqual(TEXT("Generic toughness"), Generic.Material.Toughness, Legacy.Toughness);
+    TestEqual(TEXT("Generic restitution"), Generic.Material.Restitution, Legacy.Elasticity);
+    TestEqual(TEXT("Generic cohesion"), Generic.Material.Cohesion, Legacy.Cohesion);
+    TestEqual(TEXT("Generic rigidity"), Generic.Material.Rigidity, Legacy.Rigidity);
     TestEqual(TEXT("Shape"), Restored.Shape, Legacy.Shape);
     TestEqual(TEXT("Cone radius"), Restored.ConeRadiusCm, Legacy.ConeRadiusCm);
     TestEqual(TEXT("Cone height"), Restored.ConeHeightCm, Legacy.ConeHeightCm);
     TestEqual(TEXT("Distance"), Restored.DistanceM, Legacy.DistanceM);
     TestEqual(TEXT("Speed"), Restored.SpeedMps, Legacy.SpeedMps);
     TestEqual(TEXT("Density"), Restored.DensityKgPerM3, Legacy.DensityKgPerM3);
+    TestEqual(TEXT("Hardness"), Restored.Hardness, Legacy.Hardness);
     TestEqual(TEXT("Toughness"), Restored.Toughness, Legacy.Toughness);
+    TestEqual(TEXT("Elasticity"), Restored.Elasticity, Legacy.Elasticity);
+    TestEqual(TEXT("Cohesion"), Restored.Cohesion, Legacy.Cohesion);
+    TestEqual(TEXT("Rigidity"), Restored.Rigidity, Legacy.Rigidity);
+    TestTrue(TEXT("Mass is derived rather than restored"),
+        !FMath::IsNearlyEqual(Resolved.Body.MassKg, Legacy.MassKg));
+    TestEqual(TEXT("Resolved material copied"), Resolved.Body.Material.Toughness,
+        Generic.Material.Toughness);
     return true;
 }
 ~~~
 
 - [ ] **Step 2: Run the new test target to verify the symbols are absent**
 
-Run:
+First compile the new test source:
+
+~~~powershell
+& 'D:/UE_5.8/Engine/Build/BatchFiles/Build.bat' TESTUNREALPROJECTEditor Win64 Development '-Project=D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -WaitMutex -NoHotReloadFromIDE
+~~~
+
+Expected: compilation fails because FSpellDefinitionAdapter and FSpellShapeMath do not exist yet.
+
+Then run:
 
 ~~~powershell
 & 'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' 'D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -unattended -nop4 -nullrhi '-ExecCmds=Automation RunTests AMADEUS.SpellCreation.LegacyRoundTrip; Quit' '-TestExit=Automation Test Queue Empty'
 ~~~
 
-Expected: the build fails because FSpellDefinitionAdapter and FSpellShapeMath do not exist yet.
+Expected: after implementation, the named automation test is discovered and passes.
 
 - [ ] **Step 3: Add generic reflected contracts, math, and adapters**
 
@@ -177,11 +206,20 @@ struct SPELLCREATION_API FSpellDefinitionAdapter
     static FEarthSpellDefinition ToLegacyEarth(const FSpellDefinition& Definition);
     static FResolvedSpell Resolve(const FSpellDefinition& Definition);
 };
+
+struct SPELLCREATION_API FSpellShapeMath
+{
+    static float CalculateVolumeM3(const FSpellDefinition& Definition);
+    static float CalculateDensityKgPerM3(const FSpellDefinition& Definition);
+    static float CalculateMassKg(const FSpellDefinition& Definition);
+    static float CalculateContactRadiusCm(const FSpellDefinition& Definition);
+    static FVector CalculateHalfExtentsCm(const FSpellDefinition& Definition);
+};
 ~~~
 
-Map Legacy.DensityKgPerM3, Hardness, Toughness, Elasticity, Cohesion, and Rigidity to Material.DensityKgPerM3, Hardness, Toughness, Restitution, Cohesion, and Rigidity respectively. Initialize generic Material.Toughness to 0.40f explicitly. Calculate FPhysicalBodyState.MassKg from density and generic shape volume; do not retain legacy MassKg as authored state.
+Map Legacy.DensityKgPerM3, Hardness, Toughness, Elasticity, Cohesion, and Rigidity to Material.DensityKgPerM3, Hardness, Toughness, Restitution, Cohesion, and Rigidity respectively. Initialize generic Material.Toughness to 0.40f explicitly. Resolution copies the normalized generic material into FResolvedSpell.Body.Material, derives Body.VolumeM3 with the existing sphere/cube/cone formulae, derives Body.ContactRadiusCm and half extents with the existing minimum dimensions, and sets Body.MassKg to max(density times volume, 0.01). Resolution leaves Body.VelocityCmS at zero and Body.bAffectedByGravity true; SpellExecution supplies directional launch from Definition.SpeedMps. Do not retain legacy MassKg as authored state.
 
-Keep FEarthSpellDefinition and EEarthSpellShape in EarthSpellDefinition.h, mark their comments Deprecated, and leave their properties intact. Implement UEarthSpellMath as a deprecated Blueprint wrapper that converts to FSpellDefinition and calls FSpellShapeMath. Add DefaultSpellCreation.ini with the explanatory comment that no active structural redirects are safe while the legacy reflected types are retained.
+Keep FEarthSpellDefinition and EEarthSpellShape in EarthSpellDefinition.h, mark their comments Deprecated, and leave their properties intact. Implement all five UEarthSpellMath Blueprint wrappers as deprecated adapters that convert to FSpellDefinition and call the identically purposed FSpellShapeMath method. Add DefaultSpellCreation.ini with the explanatory comment that no active structural redirects are safe while the legacy reflected types are retained.
 
 - [ ] **Step 4: Convert SpellCreation storage while preserving its old Blueprint API**
 
@@ -226,17 +264,20 @@ Expected: automation tests pass and git diff --check prints no whitespace errors
 
 **Files:**
 - Create: Plugins/SpellCreation/Source/SpellCreation/Public/SpellParameterRanges.h
+- Create: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellTypes.h
 - Create: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellState.h
 - Create: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellState.cpp
 - Create: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/Tests/LiveSpellStateTests.cpp
 - Modify: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellSessionSubsystem.h
 - Modify: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/LiveSpellSessionSubsystem.cpp
 - Modify: Plugins/LiveSpellCasting/Source/LiveSpellCasting/LiveSpellCasting.Build.cs
+- Modify: Plugins/SpellPreview/Source/SpellPreview/Private/SpellPreviewSubsystem.cpp
+- Modify: Plugins/InnerRealm/Source/InnerRealm/Private/InnerRealmSubsystem.cpp
 - Delete: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/LiveSpellRanges.h
 
 **Interfaces:**
 - Consumes: FSpellDefinition, FResolvedSpell, ESpellElement, ESpellShape, and SpellParameterRanges from Task 1.
-- Produces: FLiveSpellState with Reset(), SelectElement(), SelectShape(), SetParameterNormalized(), CanCast(), Resolve(), and GetGeneration().
+- Produces: LiveSpellTypes.h with ELiveSpellParameter and ELiveSpellStage, plus FLiveSpellState with Reset(), SelectElement(), SelectShape(), SetParameterNormalized(), CanCast(), Resolve(), GetStage(), HasConstruction(), HasElement(), HasExplicitShape(), HasModifier(), IsParameterActive(), GetParameterNormalized(), GetResolvedShape(), and GetGeneration().
 - Compatibility surface: ULiveSpellSessionSubsystem retains SelectEarth(), SelectShape(EEarthSpellShape), SetParameterNormalized(ELiveSpellParameter, float), and ResolveSpell() as adapters.
 
 - [ ] **Step 1: Write failing grammar and speed-zero tests**
@@ -259,17 +300,25 @@ TestEqual(TEXT("Unmodified speed stays zero"), SlowSpell.Definition.SpeedMps, 0.
 
 - [ ] **Step 2: Run the test to verify FLiveSpellState is unavailable**
 
-Run:
+First compile the new test source:
+
+~~~powershell
+& 'D:/UE_5.8/Engine/Build/BatchFiles/Build.bat' TESTUNREALPROJECTEditor Win64 Development '-Project=D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -WaitMutex -NoHotReloadFromIDE
+~~~
+
+Expected: compilation fails because LiveSpellTypes.h and LiveSpellState.h are not present.
+
+Then run:
 
 ~~~powershell
 & 'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' 'D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -unattended -nop4 -nullrhi '-ExecCmds=Automation RunTests AMADEUS.LiveSpell; Quit' '-TestExit=Automation Test Queue Empty'
 ~~~
 
-Expected: compilation fails because LiveSpellState.h is not present.
+Expected: after implementation, the named automation test is discovered and passes.
 
 - [ ] **Step 3: Implement an engine-free state object and centralize ranges**
 
-Move range constants and normalized interpolation functions into SpellParameterRanges.h in SpellCreation. Define the state object without UCLASS, UWorld, controller, input, or widget references.
+Move range constants and normalized interpolation functions into SpellParameterRanges.h in SpellCreation. Move the existing reflected ELiveSpellParameter and ELiveSpellStage definitions, with the same names and enumerator values, into LiveSpellTypes.h. Define the state object as plain C++ without UCLASS, UWorld, controller, input, widget, or subsystem state.
 
 ~~~cpp
 class LIVESPELLCASTING_API FLiveSpellState
@@ -282,6 +331,14 @@ public:
     bool CanSelectShape() const;
     bool CanApplyModifier() const;
     bool CanCast() const;
+    ELiveSpellStage GetStage() const;
+    bool HasConstruction() const;
+    bool HasElement() const;
+    bool HasExplicitShape() const;
+    bool HasModifier() const;
+    bool IsParameterActive(ELiveSpellParameter Parameter) const;
+    float GetParameterNormalized(ELiveSpellParameter Parameter) const;
+    ESpellShape GetResolvedShape() const;
     FResolvedSpell Resolve(const FSpellDefinition& PersistentDefaults) const;
     uint32 GetGeneration() const { return Generation; }
 
@@ -298,7 +355,7 @@ Selecting an element resets shape and overrides. Selecting a shape clears overri
 
 - [ ] **Step 4: Make the world subsystem a thin adapter and delete duplicate ranges**
 
-Replace ULiveSpellSessionSubsystem state fields with FLiveSpellState State. Its existing Earth-shaped public functions convert EEarthSpellShape to ESpellShape and delegate. Add these generic non-Blueprint helpers for the new modules:
+Replace ULiveSpellSessionSubsystem state fields with FLiveSpellState State. Its existing Earth-shaped public functions convert EEarthSpellShape to ESpellShape and delegate. Make every existing query delegate to its matching State query, including stage, construction/element/shape/modifier gates, active normalized parameters, resolved shape, and generation. Add these generic non-Blueprint helpers for the new modules:
 
 ~~~cpp
 void SelectElement(ESpellElement Element);
@@ -306,19 +363,20 @@ void SelectGenericShape(ESpellShape Shape);
 FResolvedSpell ResolveGenericSpell() const;
 ~~~
 
-Get persistent defaults from USpellCreationSubsystem::GetStoredGenericSpellDefinition(). Delete LiveSpellRanges.h only after rg confirms no include or symbol use remains:
+Get persistent defaults from USpellCreationSubsystem::GetStoredGenericSpellDefinition(). Update SpellPreviewSubsystem.cpp and InnerRealmSubsystem.cpp in this task to include SpellParameterRanges.h and use the SpellParameterRanges namespace. Delete LiveSpellRanges.h only after rg confirms no include or symbol use remains anywhere in Plugins:
 
 ~~~powershell
-rg -n "LiveSpellRanges|EEarthSpellShape|FEarthSpellDefinition" Plugins/LiveSpellCasting
+rg -n "LiveSpellRanges" Plugins
 ~~~
 
-Expected: only documented deprecated adapter names remain in the session subsystem.
+Expected: no matches.
 
 - [ ] **Step 5: Run tests, compile, and commit**
 
 Run:
 
 ~~~powershell
+& 'D:/UE_5.8/Engine/Build/BatchFiles/Build.bat' TESTUNREALPROJECTEditor Win64 Development '-Project=D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -WaitMutex -NoHotReloadFromIDE
 & 'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' 'D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -unattended -nop4 -nullrhi '-ExecCmds=Automation RunTests AMADEUS.LiveSpell; Quit' '-TestExit=Automation Test Queue Empty'
 git diff --check
 git add Plugins/SpellCreation Plugins/LiveSpellCasting
@@ -351,6 +409,14 @@ Expected: all state-machine tests pass, including the SpeedMps zero rule.
 - Modify: Plugins/SpellPreview/Source/SpellPreview/Private/SpellPreviewSubsystem.cpp
 - Modify: Plugins/SpellPreview/SpellPreview.uplugin
 - Modify: Plugins/SpellPreview/Source/SpellPreview/SpellPreview.Build.cs
+- Modify: TESTUNREALPROJECT.uproject
+- Delete: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Public/SpellCastPlacement.h
+- Delete: Plugins/LiveSpellCasting/Source/LiveSpellCasting/Private/SpellCastPlacement.cpp
+- Delete: Plugins/EarthTestHarness/EarthTestHarness.uplugin
+- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/EarthTestHarness.Build.cs
+- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/Public/EarthTestInputSubsystem.h
+- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/Private/EarthTestHarnessModule.cpp
+- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/Private/EarthTestInputSubsystem.cpp
 
 **Interfaces:**
 - Consumes: ULiveSpellSessionSubsystem::CanCast(), ResolveGenericSpell(), UPlayerViewModeSubsystem::GetTopDownCastRay(), FSpellCastPlacement, and FEarthSpellSpawner.
@@ -359,7 +425,7 @@ Expected: all state-machine tests pass, including the SpeedMps zero rule.
 
 - [ ] **Step 1: Write a failing test for execution-result guards**
 
-Define an enum with NoWorld, NoController, NoLiveConstruction, PlacementFailed, UnsupportedElement, SpawnFailed, and Executed. Test that an execution request with no resolved spell returns NoLiveConstruction and never asks a spawner to create an actor.
+Define an enum with NoWorld, NoController, NoLiveConstruction, PlacementFailed, UnsupportedElement, SpawnFailed, and Executed. Add an automation integration test with a test world whose live session has not reached ModifierActive: record its generation, invoke ExecuteLiveSpell(), then assert NoLiveConstruction, unchanged generation, and no AEarthSpellBody actor. This proves the guard does not consume construction or spawn an actor.
 
 ~~~cpp
 FSpellExecutionResult Result =
@@ -371,17 +437,25 @@ TestFalse(TEXT("No actor was spawned"), Result.bConsumedConstruction);
 
 - [ ] **Step 2: Run the test to verify the module and result type do not exist**
 
-Run:
+First compile the new test source:
+
+~~~powershell
+& 'D:/UE_5.8/Engine/Build/BatchFiles/Build.bat' TESTUNREALPROJECTEditor Win64 Development '-Project=D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -WaitMutex -NoHotReloadFromIDE
+~~~
+
+Expected: compilation fails because SpellExecution and FSpellExecutionResult have not been created.
+
+Then run:
 
 ~~~powershell
 & 'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' 'D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -unattended -nop4 -nullrhi '-ExecCmds=Automation RunTests AMADEUS.SpellExecution; Quit' '-TestExit=Automation Test Queue Empty'
 ~~~
 
-Expected: compilation fails because SpellExecution and FSpellExecutionResult have not been created.
+Expected: after implementation, the named automation test is discovered and passes.
 
 - [ ] **Step 3: Add the focused plugin, generic placement, and explicit Earth dispatch**
 
-Create the plugin with only Core, CoreUObject, Engine, InputCore, LiveSpellCasting, PlayerViewModes, and EarthMagic as declared dependencies. Move FSpellCastPlacement and FResolvedSpellCastPlacement unchanged from LiveSpellCasting, except its Resolve signature now receives FResolvedSpell and reads Spell.Definition.
+Create the plugin with direct Core, CoreUObject, Engine, InputCore, SpellCreation, LiveSpellCasting, PlayerViewModes, and EarthMagic dependencies in Build.cs. Its .uplugin descriptor lists only the project plugins SpellCreation, LiveSpellCasting, PlayerViewModes, and EarthMagic. Move FSpellCastPlacement and FResolvedSpellCastPlacement unchanged from LiveSpellCasting, except its Resolve signature now receives FResolvedSpell and reads Spell.Definition.
 
 ~~~cpp
 UENUM()
@@ -410,15 +484,15 @@ class SPELLEXECUTION_API USpellExecutionSubsystem : public UTickableWorldSubsyst
 public:
     virtual void Tick(float DeltaSeconds) override;
     virtual TStatId GetStatId() const override;
-    void SetExecutionSuspended(bool bInSuspended) { bExecutionSuspended = bInSuspended; }
-    bool IsExecutionSuspended() const { return bExecutionSuspended; }
+    void SetExecutionSuspended(bool bInSuspended);
+    bool IsExecutionSuspended() const { return ExecutionSuspensionDepth > 0; }
     FSpellExecutionResult ExecuteLiveSpell();
 private:
-    bool bExecutionSuspended = false;
+    int32 ExecutionSuspensionDepth = 0;
 };
 ~~~
 
-Tick only checks IsGameWorld(), obtains the first player controller, honors bExecutionSuspended, and reacts to WasInputKeyJustPressed(EKeys::SpaceBar). ExecuteLiveSpell preserves all current guards, derives camera aim with the PlayerView top-down override, resolves placement, and calls a direct switch on Resolved.Definition.Element. The Earth branch calls FEarthSpellSpawner::SpawnAndLaunch(World, Controller, Resolved, Placement); no registry or discovery mechanism is introduced.
+SetExecutionSuspended(true) increments the depth and false decrements it only when positive. Both Tick and ExecuteLiveSpell immediately return ExecutionSuspended while IsExecutionSuspended() is true. Tick then checks IsGameWorld(), obtains the first player controller, and reacts to WasInputKeyJustPressed(EKeys::SpaceBar). ExecuteLiveSpell preserves all remaining guards, derives camera aim with the PlayerView top-down override, resolves placement, and calls a direct switch on Resolved.Definition.Element. The Earth branch passes the three primitive placement values to FEarthSpellSpawner::SpawnAndLaunch; no registry or discovery mechanism is introduced.
 
 - [ ] **Step 4: Move Earth realization behind a dedicated spawner and update consumers**
 
@@ -431,11 +505,15 @@ struct EARTHMAGIC_API FEarthSpellSpawner
         UWorld* World,
         APlayerController* Controller,
         const FResolvedSpell& Spell,
-        const FResolvedSpellCastPlacement& Placement);
+        const FVector& SpawnLocation,
+        const FRotator& SpawnRotation,
+        const FVector& LaunchDirection);
 };
 ~~~
 
-Put FActorSpawnParameters, AdjustIfPossibleButAlwaysSpawn, AEarthSpellBody::Configure(), and Launch() inside that function. Change AEarthSpellBody, FEarthSpellShapeBuilder, and FEarthSpellDamageGeometry to accept generic shape/resolved data while retaining their Earth-specific names. Only reset the live session after FEarthSpellSpawner returns a non-null actor. Change SpellPreview to include the new public SpellCastPlacement.h and consume FResolvedSpell.Definition.Shape and Definition.Material.DensityKgPerM3. Remove the old placement files from LiveSpellCasting after all references move.
+Put FActorSpawnParameters, AdjustIfPossibleButAlwaysSpawn, AEarthSpellBody::ConfigureResolvedSpell(), and Launch() inside that function. EarthMagic receives only SpellCreation contracts and Engine value types; it must not include SpellExecution or LiveSpellCasting. Keep AEarthSpellBody::Configure(const FEarthSpellDefinition&) BlueprintCallable and retain its reflected FEarthSpellDefinition Spell property unchanged as the serialized compatibility surface. Add a distinctly named generic ConfigureResolvedSpell(const FResolvedSpell&) method which updates transient generic runtime state; Configure maps its legacy input and delegates. Change FEarthSpellShapeBuilder and FEarthSpellDamageGeometry to accept generic shape/resolved data while retaining their Earth-specific names. Only reset the live session after FEarthSpellSpawner returns a non-null actor. Change SpellPreview to include the new public SpellCastPlacement.h and consume FResolvedSpell.Definition.Shape and Definition.Material.DensityKgPerM3. Remove the old placement files from LiveSpellCasting after all references move.
+
+In the same atomic cutover, add explicit Enabled true entries for LiveSpellCasting, SpellPreview, and SpellExecution to TESTUNREALPROJECT.uproject, remove EarthTestHarness from it, and delete the listed harness descriptor and sources. This guarantees there is one active SPACE executor after the build; do not leave the old harness loaded beside SpellExecution.
 
 - [ ] **Step 5: Test, compile, and commit the executable path**
 
@@ -443,13 +521,16 @@ Run:
 
 ~~~powershell
 rg -n "SpellCastPlacement" Plugins
+& 'D:/UE_5.8/Engine/Build/BatchFiles/Build.bat' TESTUNREALPROJECTEditor Win64 Development '-Project=D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -WaitMutex -NoHotReloadFromIDE
 & 'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' 'D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -unattended -nop4 -nullrhi '-ExecCmds=Automation RunTests AMADEUS.SpellExecution; Quit' '-TestExit=Automation Test Queue Empty'
+rg -n "EarthTestHarness|UEarthTestInputSubsystem|EarthTestInputSubsystem" TESTUNREALPROJECT.uproject Plugins
 git diff --check
-git add Plugins/SpellExecution Plugins/EarthMagic Plugins/SpellPreview Plugins/LiveSpellCasting
+git add TESTUNREALPROJECT.uproject Plugins/SpellExecution Plugins/EarthMagic Plugins/SpellPreview Plugins/LiveSpellCasting
+git add -u -- Plugins/EarthTestHarness
 git commit -m "feat: add generic spell execution"
 ~~~
 
-Expected: the only FSpellCastPlacement declaration is in SpellExecution, tests pass, and the old production casting behavior is preserved.
+Expected: the only FSpellCastPlacement declaration is in SpellExecution, the final harness search has no matches, tests pass, and the old production casting behavior is preserved.
 
 ### Task 4: Invert player-view ownership and migrate binding and realm callers
 
@@ -500,7 +581,7 @@ Expected: compilation fails because FPlayerViewInputSuspensionState and SetOuter
 
 - [ ] **Step 3: Make PlayerViewModes independent and expose the realm-facing input API**
 
-Remove InnerRealmSubsystem.h and SpellCastingBindingSubsystem.h includes, all GetSubsystem calls for those modules, their Build.cs dependencies, and their .uplugin dependencies. Add a reference-counted public API so nested callers cannot incorrectly release each other's engine input lock:
+Remove InnerRealmSubsystem.h and SpellCastingBindingSubsystem.h includes, all GetSubsystem calls for those modules, their Build.cs dependencies, and their .uplugin dependencies before adding the reversed edges in SpellCastingBindings and InnerRealm. This order prevents an intermediate UBT cycle. Add a reference-counted public API so nested callers cannot incorrectly release each other's engine input lock:
 
 ~~~cpp
 struct PLAYERVIEWMODES_API FPlayerViewInputSuspensionState
@@ -527,14 +608,14 @@ The implementation increments a private counter on true and decrements only when
 
 Add PlayerViewModes as a direct public dependency of SpellCastingBindings. Replace direct top-down input ownership with a read of UPlayerViewModeSubsystem::IsTopDown(), while retaining its existing binding map and hold behavior. Make shape actions call ULiveSpellSessionSubsystem::SelectGenericShape(ESpellShape::Sphere/Cube/Cone).
 
-Add PlayerViewModes and SpellExecution direct dependencies to InnerRealm. When TAB opens the realm, call:
+Add PlayerViewModes and SpellExecution direct dependencies to InnerRealm. Add private bOwnsPlayerViewSuspension and bOwnsExecutionSuspension flags, both initialized false. When TAB opens the realm, call the APIs only when their matching flag is false, then set that flag true:
 
 ~~~cpp
 Views->SetOuterWorldInputSuspended(true);
 Executor->SetExecutionSuspended(true);
 ~~~
 
-When TAB closes or the subsystem deinitializes, call the same APIs with false. Convert InnerRealm's selector, dimension, summary, and material UI branches from EEarthSpellShape and FEarthSpellDefinition field access to ESpellShape and FSpellDefinition fields. Keep the visible labels and control behavior unchanged.
+When TAB closes or the subsystem deinitializes, call each false API only when its matching ownership flag is true, then clear the flag. This makes close followed by deinitialization release each reference exactly once. Convert InnerRealm's selector, dimension, summary, and material UI branches from EEarthSpellShape and FEarthSpellDefinition field access to ESpellShape and FSpellDefinition fields. Keep the visible labels and control behavior unchanged.
 
 - [ ] **Step 5: Test the graph, compile, and commit**
 
@@ -542,6 +623,7 @@ Run:
 
 ~~~powershell
 rg -n "InnerRealmSubsystem|SpellCastingBindingSubsystem" Plugins/PlayerViewModes
+& 'D:/UE_5.8/Engine/Build/BatchFiles/Build.bat' TESTUNREALPROJECTEditor Win64 Development '-Project=D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -WaitMutex -NoHotReloadFromIDE
 & 'D:/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' 'D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -unattended -nop4 -nullrhi '-ExecCmds=Automation RunTests AMADEUS.PlayerView+AMADEUS.LiveSpell; Quit' '-TestExit=Automation Test Queue Empty'
 git diff --check
 git add Plugins/PlayerViewModes Plugins/SpellCastingBindings Plugins/InnerRealm
@@ -550,48 +632,38 @@ git commit -m "refactor: decouple player view from spell UI"
 
 Expected: rg returns no PlayerViewModes dependency on InnerRealm or bindings, and the updated automation suites pass.
 
-### Task 5: Enable the production module graph and remove the obsolete harness
+### Task 5: Verify the production module graph and refresh active editor utilities
 
 **Files:**
-- Modify: TESTUNREALPROJECT.uproject
 - Modify: Plugins/LiveSpellCasting/LiveSpellCasting.uplugin
 - Modify: Plugins/SpellPreview/SpellPreview.uplugin
-- Delete: Plugins/EarthTestHarness/EarthTestHarness.uplugin
-- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/EarthTestHarness.Build.cs
-- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/Public/EarthTestInputSubsystem.h
-- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/Private/EarthTestHarnessModule.cpp
-- Delete: Plugins/EarthTestHarness/Source/EarthTestHarness/Private/EarthTestInputSubsystem.cpp
 - Modify: Content/Python/amadeus_tools.py
 - Modify: Content/Python/init_unreal.py
 
 **Interfaces:**
 - Consumes: the complete SpellExecution runtime path from Task 3.
-- Produces: an explicitly enabled project descriptor in which LiveSpellCasting, SpellPreview, and SpellExecution load without EarthTestHarness.
+- Produces: verified explicit production dependencies and retained, accurately described active AMADEUS editor helpers.
 
-- [ ] **Step 1: Write the failure-detection checks before deleting the harness**
+- [ ] **Step 1: Audit the completed atomic executor cutover**
 
-Run reference searches and save their expected empty results in the task notes:
+Run these reference searches:
 
 ~~~powershell
 rg -n "EarthTestHarness|UEarthTestInputSubsystem|EarthTestInputSubsystem" TESTUNREALPROJECT.uproject Plugins Content Config Docs
 rg -n "LiveSpellCasting|SpellPreview|SpellExecution" TESTUNREALPROJECT.uproject
 ~~~
 
-Expected before editing: the first command finds the harness descriptor and the second command lacks at least one explicit production plugin.
+Expected: the first command has no matches; the second command shows all three explicitly enabled production plugins.
 
-- [ ] **Step 2: Make plugin activation explicit**
+- [ ] **Step 2: Verify direct descriptor dependencies**
 
-Edit TESTUNREALPROJECT.uproject so EarthTestHarness is absent and these plugins each have an Enabled true entry: LiveSpellCasting, SpellPreview, and SpellExecution. Update descriptor dependency lists to match the target graph. Do not disable EarthFoundation, MaterialCore, PhysicalBody, ImpactSystem, EarthMagic, PlayerViewModes, SpellCastingBindings, SpellCreation, or InnerRealm.
+Check every direct source-module include introduced in Tasks 1 through 4 has a matching Build.cs and .uplugin dependency. In particular, SpellPreview declares SpellExecution and SpellCreation, LiveSpellCasting declares SpellCreation, and no descriptor refers to EarthTestHarness. Do not disable EarthFoundation, MaterialCore, PhysicalBody, ImpactSystem, EarthMagic, PlayerViewModes, SpellCastingBindings, SpellCreation, or InnerRealm.
 
-- [ ] **Step 3: Delete only the obsolete harness sources after production references resolve**
-
-Confirm SpellExecution owns raw SPACE polling and that rg reports no remaining external reference to EarthTestHarness. Then delete the listed descriptor, Build.cs, header, and two source files. Do not delete test assets, EarthMagic, or active Python tools.
-
-- [ ] **Step 4: Keep active editor utilities and correct their descriptions**
+- [ ] **Step 3: Keep active editor utilities and correct their descriptions**
 
 Retain the AMADEUS editor menu registration and the selected Earth block helper in Content/Python. Remove the unregistered legacy dent helper only if its function name has no remaining menu reference. Replace stale user-facing strings about E/F1 controls, mass controls, and old vertex-dent behavior with descriptions of the current selected-block material and impact helpers. Preserve the /Script/EarthFoundation.EarthBlockActor reference.
 
-- [ ] **Step 5: Rebuild and commit the module graph cleanup**
+- [ ] **Step 4: Rebuild and commit the graph verification and utility cleanup**
 
 Run:
 
@@ -599,8 +671,8 @@ Run:
 & 'D:/UE_5.8/Engine/Build/BatchFiles/Build.bat' TESTUNREALPROJECTEditor Win64 Development '-Project=D:/TESTUNREALPROJECT/TESTUNREALPROJECT.uproject' -WaitMutex -NoHotReloadFromIDE
 rg -n "EarthTestHarness|UEarthTestInputSubsystem|EarthTestInputSubsystem" TESTUNREALPROJECT.uproject Plugins Content Config Docs
 git diff --check
-git add TESTUNREALPROJECT.uproject Plugins Content/Python
-git commit -m "refactor: remove obsolete Earth test harness"
+git add Plugins/LiveSpellCasting/LiveSpellCasting.uplugin Plugins/SpellPreview/SpellPreview.uplugin Content/Python
+git commit -m "chore: verify production module graph"
 ~~~
 
 Expected: the build succeeds and the final rg command produces no matches.
@@ -746,10 +818,10 @@ Expected: no private cross-plugin include, no harness reference, and no generate
 Task 7 must not introduce an unplanned catch-all source edit. If verification exposes a defect, stop this task, return to the owning task, add a precise corrective step and test there, and repeat its validation before restarting Task 7. When the clean build and regression checklist pass without a new correction, push the reviewed implementation commits:
 
 ~~~powershell
-git push origin main
+git push --set-upstream origin codex/unreal-architecture-cleanup
 ~~~
 
-Expected: the remote reports the branch is up to date after the push.
+Expected: the remote reports the dedicated implementation branch is up to date after the push.
 
 - [ ] **Step 5: Deliver the final implementation report**
 
@@ -759,4 +831,4 @@ Report the generic contract migration, new SpellExecution boundary, deleted harn
 
 - Spec coverage: Tasks 1 and 2 cover generic contracts, legacy safety, shared ranges, and the pure live state machine. Task 3 covers the extracted production casting path, generic placement, preview migration, and Earth realization. Task 4 covers the dependency inversion and realm behavior. Task 5 covers descriptor activation and harness removal. Task 6 covers the exact tooling/documentation inventory. Task 7 covers clean builds, automation, manual behavior, staging, and push.
 - Placeholder scan: the plan contains no deferred implementation markers; all required files, commands, state transitions, mappings, and validation conditions are named.
-- Type consistency: FSpellDefinition and FResolvedSpell originate in Task 1; FLiveSpellState in Task 2; SpellExecution consumes ResolveGenericSpell() and FResolvedSpell in Task 3; PlayerView and InnerRealm use the exact SetOuterWorldInputSuspended(bool) and SetExecutionSuspended(bool) contracts in Task 4.
+- Type consistency: FSpellDefinition and FResolvedSpell originate in Task 1; LiveSpellTypes and FLiveSpellState originate in Task 2; SpellExecution consumes ResolveGenericSpell(), FResolvedSpell, and its own placement types in Task 3; EarthMagic receives only FResolvedSpell plus Engine value types; PlayerView and InnerRealm use the exact balanced SetOuterWorldInputSuspended(bool) and SetExecutionSuspended(bool) contracts in Task 4.
