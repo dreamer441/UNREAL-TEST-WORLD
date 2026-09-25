@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "EarthSpellDefinition.generated.h"
 
-/** First playable Earth-shape set. Geometry is realized by EarthMagic. */
+/** Deprecated Earth shape contract retained for reflected compatibility. */
 UENUM(BlueprintType)
 enum class EEarthSpellShape : uint8
 {
@@ -13,7 +13,7 @@ enum class EEarthSpellShape : uint8
 };
 
 /**
- * Pure Earth spell construction data.
+ * Deprecated Earth spell construction data retained for Blueprint compatibility.
  *
  * Density is an authored material property. Mass is a derived cached body
  * value (density * volume) maintained by SpellCreation before execution.

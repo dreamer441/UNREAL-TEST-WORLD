@@ -8,6 +8,11 @@ static float Positive(const float Value, const float Minimum, const float Fallba
     return FMath::IsFinite(Value) ? FMath::Max(Value, Minimum) : Fallback;
 }
 
+static float Clamped(const float Value, const float Minimum, const float Maximum, const float Fallback)
+{
+    return FMath::IsFinite(Value) ? FMath::Clamp(Value, Minimum, Maximum) : Fallback;
+}
+
 static FSpellDefinition Normalize(FSpellDefinition Spell)
 {
     const FSpellDefinition Defaults;
@@ -20,11 +25,14 @@ static FSpellDefinition Normalize(FSpellDefinition Spell)
     Spell.DistanceM = Positive(Spell.DistanceM, 0.0f, Defaults.DistanceM);
     Spell.SpeedMps = Positive(Spell.SpeedMps, 0.0f, Defaults.SpeedMps);
     Spell.Material.DensityKgPerM3 = Positive(Spell.Material.DensityKgPerM3, 1.0f, Defaults.Material.DensityKgPerM3);
-    Spell.Material.Hardness = FMath::Clamp(Spell.Material.Hardness, 0.0f, 1.0f);
-    Spell.Material.Toughness = FMath::Clamp(Spell.Material.Toughness, 0.0f, 1.0f);
-    Spell.Material.Restitution = FMath::Clamp(Spell.Material.Restitution, 0.0f, 1.0f);
-    Spell.Material.Cohesion = FMath::Clamp(Spell.Material.Cohesion, 0.0f, 1.0f);
-    Spell.Material.Rigidity = FMath::Clamp(Spell.Material.Rigidity, 0.0f, 1.0f);
+    Spell.Material.Hardness = Clamped(Spell.Material.Hardness, 0.0f, 1.0f, Defaults.Material.Hardness);
+    Spell.Material.Toughness = Clamped(Spell.Material.Toughness, 0.0f, 1.0f, Defaults.Material.Toughness);
+    Spell.Material.Restitution = Clamped(Spell.Material.Restitution, 0.0f, 1.0f, Defaults.Material.Restitution);
+    Spell.Material.Cohesion = Clamped(Spell.Material.Cohesion, 0.0f, 1.0f, Defaults.Material.Cohesion);
+    Spell.Material.Rigidity = Clamped(Spell.Material.Rigidity, 0.0f, 1.0f, Defaults.Material.Rigidity);
+    Spell.Material.Plasticity = Clamped(Spell.Material.Plasticity, 0.0f, 1.0f, Defaults.Material.Plasticity);
+    Spell.Material.Friction = Clamped(Spell.Material.Friction, 0.0f, 2.0f, Defaults.Material.Friction);
+    Spell.Material.TemperatureC = FMath::IsFinite(Spell.Material.TemperatureC) ? Spell.Material.TemperatureC : Defaults.Material.TemperatureC;
     return Spell;
 }
 }

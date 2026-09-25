@@ -25,7 +25,10 @@ public:
     void SetStoredGenericSpellDefinition(const FSpellDefinition& NewSpell);
 
     UFUNCTION(BlueprintPure, Category="Spell Creation")
-    FEarthSpellDefinition GetStoredSpellDefinition() const { return StoredSpell; }
+    FEarthSpellDefinition GetStoredSpellDefinition() const
+    {
+        return FSpellDefinitionAdapter::ToLegacyEarth(StoredGenericSpell);
+    }
 
     UFUNCTION(BlueprintCallable, Category="Spell Creation")
     void SetStoredSpellDefinition(const FEarthSpellDefinition& NewSpell);
