@@ -22,6 +22,8 @@ public:
     void SelectEarth();
     bool IsEarthExplicitlySelected() const { return State.HasElement(); }
     void SelectShape(EEarthSpellShape Shape);
+    /** Loads a complete prepared definition into the transient live session. */
+    void LoadPreparedSpell(const FSpellDefinition& Spell);
     bool HasShapeOverride() const { return State.HasExplicitShape(); }
     EEarthSpellShape GetResolvedShape() const;
     void SetParameterNormalized(ELiveSpellParameter Parameter, float NormalizedValue);
@@ -34,5 +36,7 @@ public:
     uint32 GetGeneration() const { return State.GetGeneration(); }
 private:
     FLiveSpellState State;
+    /** Optional prepared spell base; manual Q/root selection clears it. */
+    TOptional<FSpellDefinition> PreparedSpellBase;
     FSpellDefinition GetPersistentGenericDefaults() const;
 };

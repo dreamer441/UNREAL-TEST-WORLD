@@ -9,7 +9,9 @@
 #include "LiveSpellSessionSubsystem.h"
 #include "PlayerViewModeSubsystem.h"
 #include "SpellCastPlacement.h"
+#include "SpellDefinition.h"
 #include "SpellCreationSubsystem.h"
+#include "SpellPatternResolver.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -288,6 +290,29 @@ namespace
         }
     }
 
+    FQuat GetWorkbenchOrientationRotation(
+        const FEarthSpellDefinition& Spell,
+        const FQuat& BaseRotation)
+    {
+        if (Spell.Orientation == ESpellOrientationAxis::Up)
+        {
+            return BaseRotation;
+        }
+
+        FVector DesiredZ = Spell.Orientation == ESpellOrientationAxis::Forward
+            ? BaseRotation.RotateVector(FVector::ForwardVector)
+            : BaseRotation.RotateVector(FVector::RightVector);
+        DesiredZ.Normalize();
+
+        FVector ReferenceX = BaseRotation.RotateVector(FVector::UpVector);
+        if (ReferenceX.IsNearlyZero() || FMath::Abs(FVector::DotProduct(DesiredZ, ReferenceX.GetSafeNormal())) > 0.98f)
+        {
+            ReferenceX = FVector::ForwardVector;
+        }
+
+        return FRotationMatrix::MakeFromZX(DesiredZ, ReferenceX).ToQuat();
+    }
+
     void DrawSpellVisual(
         UWorld* World,
         const FEarthSpellDefinition& Spell,
@@ -367,7 +392,7 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
      * circular plugin graph.
      */
     const UInnerRealmSubsystem* InnerRealm = World->GetSubsystem<UInnerRealmSubsystem>();
-    if (InnerRealm && InnerRealm->IsActive())
+    if (InnerRealm && InnerRealm->IsSpellWorkbenchVisible())
     {
         const USpellCreationSubsystem* SpellCreation = World->GetSubsystem<USpellCreationSubsystem>();
         AInnerRealmActor* RealmActor = nullptr;
@@ -412,12 +437,30 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
             // The Workbench reflects the stored/default speed itself. This differs
             // intentionally from live casting, where rings appear only after the
             // live Speed modifier has been explicitly activated.
-            DrawSpellVisual(
-                World,
-                Spell,
+            TArray<FResolvedPatternInstance> PreviewInstances;
+            FSpellPatternResolver::ResolveInstances(
+                SpellCreation->GetStoredGenericSpellDefinition().Pattern,
                 PreviewCenter,
-                WorkbenchReferenceTransform.GetRotation(),
-                Spell.SpeedMps > 0.1f);
+                Forward,
+                PreviewInstances);
+
+            const FQuat BaseSpellRotation =
+                GetWorkbenchOrientationRotation(
+                    Spell,
+                    WorkbenchReferenceTransform.GetRotation());
+
+            for (const FResolvedPatternInstance& Instance : PreviewInstances)
+            {
+                const FQuat FinalRotation =
+                    Instance.PatternRotation * BaseSpellRotation;
+
+                DrawSpellVisual(
+                    World,
+                    Spell,
+                    Instance.Location,
+                    FinalRotation,
+                    Spell.SpeedMps > 0.1f);
+            }
         }
     }
 
@@ -446,7 +489,12 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
         return;
     }
 
-    const FEarthSpellDefinition Spell = Session->ResolveSpell();
+    // The cleanup architecture made SpellExecution consume FResolvedSpell.
+    // Keep the preview renderer on the legacy visual adapter for now, but pass
+    // the canonical generic resolved spell into placement.
+    const FResolvedSpell ResolvedSpell = Session->ResolveGenericSpell();
+    const FEarthSpellDefinition Spell =
+        FSpellDefinitionAdapter::ToLegacyEarth(ResolvedSpell.Definition);
     FVector AimOrigin;
     FVector AimDirection;
     if (!Views->GetTopDownCastRay(AimOrigin, AimDirection))
@@ -455,7 +503,7 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
     }
 
     FResolvedSpellCastPlacement Placement;
-    if (!FSpellCastPlacement::Resolve(PC, Spell, AimDirection, Placement))
+    if (!FSpellCastPlacement::Resolve(PC, ResolvedSpell, AimDirection, Placement))
     {
         return;
     }
@@ -464,10 +512,26 @@ void USpellPreviewSubsystem::Tick(float DeltaSeconds)
     // the persistent default speed.
     const bool bLiveSpeedActive = Session->IsParameterActive(ELiveSpellParameter::Speed);
 
-    DrawSpellVisual(
-        World,
-        Spell,
+    TArray<FResolvedPatternInstance> LivePreviewInstances;
+    FSpellPatternResolver::ResolveInstances(
+        ResolvedSpell.Definition.Pattern,
         Placement.SpawnLocation,
-        Placement.SpawnRotation.Quaternion(),
-        bLiveSpeedActive);
+        AimDirection,
+        LivePreviewInstances);
+
+    const FQuat LiveBaseSpellRotation =
+        Placement.SpawnRotation.Quaternion();
+
+    for (const FResolvedPatternInstance& Instance : LivePreviewInstances)
+    {
+        const FQuat FinalRotation =
+            Instance.PatternRotation * LiveBaseSpellRotation;
+
+        DrawSpellVisual(
+            World,
+            Spell,
+            Instance.Location,
+            FinalRotation,
+            bLiveSpeedActive);
+    }
 }

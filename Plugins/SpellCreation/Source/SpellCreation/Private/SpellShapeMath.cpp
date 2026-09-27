@@ -23,6 +23,48 @@ static FSpellDefinition Normalize(FSpellDefinition Spell)
     Spell.ShapeDefinition.ConeRadiusCm = Positive(Spell.ShapeDefinition.ConeRadiusCm, 1.0f, Defaults.ShapeDefinition.ConeRadiusCm);
     Spell.ShapeDefinition.ConeHeightCm = Positive(Spell.ShapeDefinition.ConeHeightCm, 1.0f, Defaults.ShapeDefinition.ConeHeightCm);
     Spell.DistanceM = Positive(Spell.DistanceM, 0.0f, Defaults.DistanceM);
+    Spell.Pattern.Amount = FMath::Clamp(
+        Spell.Pattern.Amount,
+        SpellPatternRanges::MinAmount,
+        SpellPatternRanges::MaxAmount);
+    Spell.Pattern.SpacingCm = Clamped(
+        Spell.Pattern.SpacingCm,
+        SpellPatternRanges::MinSpacingCm,
+        SpellPatternRanges::MaxSpacingCm,
+        Defaults.Pattern.SpacingCm);
+    Spell.Pattern.CircleRadiusCm = Clamped(
+        Spell.Pattern.CircleRadiusCm,
+        SpellPatternRanges::MinCircleRadiusCm,
+        SpellPatternRanges::MaxCircleRadiusCm,
+        Defaults.Pattern.CircleRadiusCm);
+
+    switch (Spell.Pattern.InstanceOrientation)
+    {
+        case ESpellPatternOrientation::Shared:
+        case ESpellPatternOrientation::Outward:
+        case ESpellPatternOrientation::Inward:
+        case ESpellPatternOrientation::Tangent:
+            break;
+        default:
+            Spell.Pattern.InstanceOrientation = ESpellPatternOrientation::Shared;
+            break;
+    }
+
+    switch (Spell.MotionDirection)
+    {
+        case ESpellMotionDirection::Forward:
+        case ESpellMotionDirection::Backward:
+        case ESpellMotionDirection::Up:
+        case ESpellMotionDirection::Down:
+        case ESpellMotionDirection::Outward:
+        case ESpellMotionDirection::Inward:
+        case ESpellMotionDirection::Tangent:
+            break;
+        default:
+            Spell.MotionDirection = ESpellMotionDirection::Forward;
+            break;
+    }
+
     Spell.SpeedMps = Positive(Spell.SpeedMps, 0.0f, Defaults.SpeedMps);
     Spell.Material.DensityKgPerM3 = Positive(Spell.Material.DensityKgPerM3, 1.0f, Defaults.Material.DensityKgPerM3);
     Spell.Material.Hardness = Clamped(Spell.Material.Hardness, 0.0f, 1.0f, Defaults.Material.Hardness);
@@ -69,13 +111,13 @@ FVector FSpellShapeMath::CalculateHalfExtentsCm(const FSpellDefinition& D)
 FSpellDefinition FSpellDefinitionAdapter::FromLegacyEarth(const FEarthSpellDefinition& L)
 {
     FSpellDefinition D; D.Shape = L.Shape == EEarthSpellShape::Sphere ? ESpellShape::Sphere : L.Shape == EEarthSpellShape::Cube ? ESpellShape::Cube : ESpellShape::Cone;
-    D.ShapeDefinition={L.SphereRadiusCm,L.CubeXcm,L.CubeYcm,L.CubeZcm,L.ConeRadiusCm,L.ConeHeightCm}; D.DistanceM=L.DistanceM; D.SpeedMps=L.SpeedMps;
+    D.ShapeDefinition={L.SphereRadiusCm,L.CubeXcm,L.CubeYcm,L.CubeZcm,L.ConeRadiusCm,L.ConeHeightCm}; D.DistanceM=L.DistanceM; D.Orientation=L.Orientation; D.Pattern.Amount=L.Amount; D.Pattern.Arrangement=L.Arrangement; D.Pattern.LineAxis=L.PatternAxis; D.Pattern.InstanceOrientation=L.PatternOrientation; D.MotionDirection=L.MotionDirection; D.Pattern.SpacingCm=L.SpacingCm; D.Pattern.CircleRadiusCm=L.CircleRadiusCm; D.SpeedMps=L.SpeedMps;
     D.Material.DensityKgPerM3=L.DensityKgPerM3; D.Material.Hardness=L.Hardness; D.Material.Toughness=L.Toughness; D.Material.Restitution=L.Elasticity; D.Material.Cohesion=L.Cohesion; D.Material.Rigidity=L.Rigidity; return D;
 }
 FEarthSpellDefinition FSpellDefinitionAdapter::ToLegacyEarth(const FSpellDefinition& In)
 {
     const FSpellDefinition D=SpellShapeMathPrivate::Normalize(In); FEarthSpellDefinition L; L.Shape=D.Shape==ESpellShape::Sphere?EEarthSpellShape::Sphere:D.Shape==ESpellShape::Cube?EEarthSpellShape::Cube:EEarthSpellShape::Cone;
-    L.SphereRadiusCm=D.ShapeDefinition.SphereRadiusCm; L.CubeXcm=D.ShapeDefinition.CubeXcm; L.CubeYcm=D.ShapeDefinition.CubeYcm; L.CubeZcm=D.ShapeDefinition.CubeZcm; L.ConeRadiusCm=D.ShapeDefinition.ConeRadiusCm; L.ConeHeightCm=D.ShapeDefinition.ConeHeightCm; L.DistanceM=D.DistanceM; L.SpeedMps=D.SpeedMps; L.DensityKgPerM3=D.Material.DensityKgPerM3; L.Hardness=D.Material.Hardness; L.Toughness=D.Material.Toughness; L.Elasticity=D.Material.Restitution; L.Cohesion=D.Material.Cohesion; L.Rigidity=D.Material.Rigidity; L.MassKg=FSpellShapeMath::CalculateMassKg(D); return L;
+    L.SphereRadiusCm=D.ShapeDefinition.SphereRadiusCm; L.CubeXcm=D.ShapeDefinition.CubeXcm; L.CubeYcm=D.ShapeDefinition.CubeYcm; L.CubeZcm=D.ShapeDefinition.CubeZcm; L.ConeRadiusCm=D.ShapeDefinition.ConeRadiusCm; L.ConeHeightCm=D.ShapeDefinition.ConeHeightCm; L.DistanceM=D.DistanceM; L.Orientation=D.Orientation; L.Amount=D.Pattern.Amount; L.Arrangement=D.Pattern.Arrangement; L.PatternAxis=D.Pattern.LineAxis; L.PatternOrientation=D.Pattern.InstanceOrientation; L.MotionDirection=D.MotionDirection; L.SpacingCm=D.Pattern.SpacingCm; L.CircleRadiusCm=D.Pattern.CircleRadiusCm; L.SpeedMps=D.SpeedMps; L.DensityKgPerM3=D.Material.DensityKgPerM3; L.Hardness=D.Material.Hardness; L.Toughness=D.Material.Toughness; L.Elasticity=D.Material.Restitution; L.Cohesion=D.Material.Cohesion; L.Rigidity=D.Material.Rigidity; L.MassKg=FSpellShapeMath::CalculateMassKg(D); return L;
 }
 FResolvedSpell FSpellDefinitionAdapter::Resolve(const FSpellDefinition& In)
 {

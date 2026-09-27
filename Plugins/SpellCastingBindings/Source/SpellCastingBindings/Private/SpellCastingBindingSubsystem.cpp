@@ -85,6 +85,16 @@ bool USpellCastingBindingSubsystem::CanAssignKey(const FKey& Key) const
         && Key != EKeys::RightShift
         && Key != EKeys::SpaceBar
         && Key != EKeys::Escape
+        && Key != EKeys::One
+        && Key != EKeys::Two
+        && Key != EKeys::Three
+        && Key != EKeys::Four
+        && Key != EKeys::Five
+        && Key != EKeys::Six
+        && Key != EKeys::Seven
+        && Key != EKeys::Eight
+        && Key != EKeys::Nine
+        && Key != EKeys::Zero
         && Key != EKeys::MouseScrollUp
         && Key != EKeys::MouseScrollDown
         && Key != EKeys::MouseWheelAxis;

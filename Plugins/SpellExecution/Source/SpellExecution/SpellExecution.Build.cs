@@ -7,6 +7,9 @@ public class SpellExecution : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[]
         {
+            "SpellMotion",
+            "SpellPattern",
+            "SpellLoadout",
             "Core", "CoreUObject", "Engine", "InputCore",
             "SpellCreation", "LiveSpellCasting", "PlayerViewModes", "EarthMagic"
         });

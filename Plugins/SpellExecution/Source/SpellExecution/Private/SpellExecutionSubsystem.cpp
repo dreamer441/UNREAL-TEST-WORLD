@@ -4,6 +4,9 @@
 #include "LiveSpellSessionSubsystem.h"
 #include "PlayerViewModeSubsystem.h"
 #include "SpellCastPlacement.h"
+#include "SpellLoadoutSubsystem.h"
+#include "SpellPatternResolver.h"
+#include "SpellMotionResolver.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
@@ -39,7 +42,39 @@ void USpellExecutionSubsystem::Tick(const float DeltaSeconds)
     }
 
     APlayerController* Controller = World->GetFirstPlayerController();
-    if (Controller && Controller->WasInputKeyJustPressed(EKeys::SpaceBar))
+    if (!Controller)
+    {
+        return;
+    }
+
+    // Prepared spell slots 1..0: load first, SPACE remains the universal execution key.
+    static const FKey SlotKeys[USpellLoadoutSubsystem::SlotCount] =
+    {
+        EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,
+        EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero
+    };
+
+    if (USpellLoadoutSubsystem* Loadout = World->GetSubsystem<USpellLoadoutSubsystem>())
+    {
+        if (ULiveSpellSessionSubsystem* LiveSession = World->GetSubsystem<ULiveSpellSessionSubsystem>())
+        {
+            for (int32 SlotIndex = 0; SlotIndex < USpellLoadoutSubsystem::SlotCount; ++SlotIndex)
+            {
+                if (Controller->WasInputKeyJustPressed(SlotKeys[SlotIndex]))
+                {
+                    FSpellDefinition PreparedSpell;
+                    if (Loadout->GetSlotSpell(SlotIndex, PreparedSpell))
+                    {
+                        Loadout->EquipSlot(SlotIndex);
+                        LiveSession->LoadPreparedSpell(PreparedSpell);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    if (Controller->WasInputKeyJustPressed(EKeys::SpaceBar))
     {
         ExecuteLiveSpell();
     }
@@ -94,23 +129,50 @@ FSpellExecutionResult USpellExecutionSubsystem::ExecuteLiveSpell()
         return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::PlacementFailed);
     }
 
-    bool bSpawned = false;
+    TArray<FResolvedPatternInstance> ResolvedInstances;
+    FSpellPatternResolver::ResolveInstances(
+        ResolvedSpell.Definition.Pattern,
+        Placement.SpawnLocation,
+        Placement.LaunchDirection,
+        ResolvedInstances);
+
+    const FQuat BaseSpellRotation = Placement.SpawnRotation.Quaternion();
+
+    int32 SpawnedCount = 0;
     switch (ResolvedSpell.Definition.Element)
     {
     case ESpellElement::Earth:
-        bSpawned = FEarthSpellSpawner::SpawnAndLaunch(
-            World,
-            Controller,
-            ResolvedSpell,
-            Placement.SpawnLocation,
-            Placement.SpawnRotation,
-            Placement.LaunchDirection) != nullptr;
+        for (const FResolvedPatternInstance& Instance : ResolvedInstances)
+        {
+            const FQuat FinalRotation =
+                Instance.PatternRotation * BaseSpellRotation;
+
+            const FVector InstanceLaunchDirection =
+                FSpellMotionResolver::ResolveDirection(
+                    ResolvedSpell.Definition.MotionDirection,
+                    ResolvedSpell.Definition.Pattern,
+                    Instance.Location,
+                    Placement.SpawnLocation,
+                    Placement.LaunchDirection);
+
+            if (FEarthSpellSpawner::SpawnAndLaunch(
+                World,
+                Controller,
+                ResolvedSpell,
+                Instance.Location,
+                FinalRotation.Rotator(),
+                InstanceLaunchDirection))
+            {
+                ++SpawnedCount;
+            }
+        }
         break;
+
     default:
         return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::UnsupportedElement);
     }
 
-    if (!bSpawned)
+    if (SpawnedCount <= 0)
     {
         return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::SpawnFailed);
     }

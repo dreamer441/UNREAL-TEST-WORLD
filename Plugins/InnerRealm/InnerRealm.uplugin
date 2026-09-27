@@ -9,11 +9,36 @@
   "CanContainContent": false,
   "IsBetaVersion": true,
   "Modules": [
-    { "Name": "InnerRealm", "Type": "Runtime", "LoadingPhase": "Default" }
+    {
+      "Name": "InnerRealm",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
   ],
   "Plugins": [
-    { "Name": "SpellCreation", "Enabled": true },
-    { "Name": "SpellCastingBindings", "Enabled": true },
-    { "Name": "LiveSpellCasting", "Enabled": true }
+    {
+      "Name": "SpellCreation",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellCastingBindings",
+      "Enabled": true
+    },
+    {
+      "Name": "LiveSpellCasting",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellLoadout",
+      "Enabled": true
+    },
+    {
+      "Name": "WorldCodex",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellGraph",
+      "Enabled": true
+    }
   ]
 }

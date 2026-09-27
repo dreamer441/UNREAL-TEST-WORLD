@@ -10,13 +10,36 @@
   "EnabledByDefault": true,
   "IsBetaVersion": true,
   "Modules": [
-    { "Name": "SpellPreview", "Type": "Runtime", "LoadingPhase": "Default" }
+    {
+      "Name": "SpellPreview",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
   ],
   "Plugins": [
-    { "Name": "LiveSpellCasting", "Enabled": true },
-    { "Name": "SpellCreation", "Enabled": true },
-    { "Name": "PlayerViewModes", "Enabled": true },
-    { "Name": "InnerRealm", "Enabled": true },
-    { "Name": "SpellExecution", "Enabled": true }
+    {
+      "Name": "LiveSpellCasting",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellCreation",
+      "Enabled": true
+    },
+    {
+      "Name": "PlayerViewModes",
+      "Enabled": true
+    },
+    {
+      "Name": "InnerRealm",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellExecution",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellPattern",
+      "Enabled": true
+    }
   ]
 }

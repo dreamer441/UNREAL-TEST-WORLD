@@ -7,6 +7,9 @@ public class InnerRealm : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[]
         {
+            "SpellGraph",
+            "WorldCodex",
+            "SpellLoadout",
             "Core", "CoreUObject", "Engine", "InputCore", "Slate", "SlateCore",
             "SpellCreation", "SpellCastingBindings", "LiveSpellCasting"
         });

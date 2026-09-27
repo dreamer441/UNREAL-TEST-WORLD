@@ -3,6 +3,9 @@
 #include "CoreMinimal.h"
 #include "MaterialPhysicalProperties.h"
 #include "PhysicalBodyState.h"
+#include "SpellSpatialTypes.h"
+#include "SpellPatternTypes.h"
+#include "SpellMotionTypes.h"
 #include "SpellDefinition.generated.h"
 
 struct FEarthSpellDefinition;
@@ -35,6 +38,9 @@ struct SPELLCREATION_API FSpellDefinition
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") FSpellShapeDefinition ShapeDefinition;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") FMaterialPhysicalProperties Material;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") float DistanceM = 3.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Spatial") ESpellOrientationAxis Orientation = ESpellOrientationAxis::Up;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Pattern") FSpellPatternDefinition Pattern;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Motion") ESpellMotionDirection MotionDirection = ESpellMotionDirection::Forward;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell") float SpeedMps = 30.0f;
 };
 

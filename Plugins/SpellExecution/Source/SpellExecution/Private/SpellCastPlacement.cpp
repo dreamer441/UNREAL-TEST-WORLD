@@ -44,6 +44,34 @@ bool FSpellCastPlacement::Resolve(
         + FVector(0.0f, 0.0f, ChestOffsetCm)
         + PlacementForward * (CharacterSafetyGapCm + ShapeClearanceCm + ExtraDistanceCm);
     OutPlacement.LaunchDirection = LaunchDirection;
-    OutPlacement.SpawnRotation = FRotator(0.0f, PlacementForward.Rotation().Yaw, 0.0f);
+
+    // Shape orientation is independent from aim/launch direction.
+    switch (Definition.Orientation)
+    {
+    case ESpellOrientationAxis::Forward:
+        OutPlacement.SpawnRotation = FRotationMatrix::MakeFromZX(
+            LaunchDirection,
+            FVector::UpVector).Rotator();
+        break;
+
+    case ESpellOrientationAxis::Right:
+    {
+        FVector CastRight = FVector::CrossProduct(FVector::UpVector, PlacementForward).GetSafeNormal();
+        if (CastRight.IsNearlyZero())
+        {
+            CastRight = Pawn->GetActorRightVector().GetSafeNormal();
+        }
+        OutPlacement.SpawnRotation = FRotationMatrix::MakeFromZX(
+            CastRight,
+            FVector::UpVector).Rotator();
+        break;
+    }
+
+    case ESpellOrientationAxis::Up:
+    default:
+        OutPlacement.SpawnRotation = FRotator(0.0f, PlacementForward.Rotation().Yaw, 0.0f);
+        break;
+    }
+
     return true;
 }

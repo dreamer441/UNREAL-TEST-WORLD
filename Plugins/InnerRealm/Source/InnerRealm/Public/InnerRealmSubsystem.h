@@ -14,7 +14,16 @@ class APlayerController;
 class SWidget;
 class USpellCreationSubsystem;
 class USpellCastingBindingSubsystem;
+class UWorldCodexSubsystem;
+class USpellGraphSubsystem;
 enum class ESpellLiveAction : uint8;
+
+enum class EInnerRealmPage : uint8
+{
+    Spell,
+    Codex,
+    Canvas
+};
 
 /**
  * Meditation-state node.
@@ -35,10 +44,26 @@ public:
     UFUNCTION(BlueprintPure, Category="Inner Realm")
     bool IsActive() const { return bActive; }
 
+    bool IsSpellWorkbenchVisible() const
+    {
+        return bActive &&
+            (ActivePage == EInnerRealmPage::Spell ||
+             ActivePage == EInnerRealmPage::Canvas);
+    }
+
 private:
     bool bActive = false;
+    EInnerRealmPage ActivePage = EInnerRealmPage::Spell;
+    FName SelectedCodexConcept = FName(TEXT("element.earth"));
+    FGuid SelectedCanvasNode;
+    TSet<FGuid> ExpandedCanvasNodes;
+    FName PendingCanvasElement = NAME_None;
+
+    TSharedPtr<SWidget> NavigationWidget;
     TSharedPtr<SWidget> EditorWidget;
     TSharedPtr<SWidget> PreviewFrameWidget;
+    TSharedPtr<SWidget> CodexWidget;
+    TSharedPtr<SWidget> CanvasWidget;
     TWeakObjectPtr<AInnerRealmActor> RealmActor;
     TWeakObjectPtr<AActor> PreviousViewTarget;
 
@@ -60,6 +85,14 @@ private:
 
     USpellCreationSubsystem* GetSpellCreation() const;
     USpellCastingBindingSubsystem* GetSpellBindings() const;
+    UWorldCodexSubsystem* GetWorldCodex() const;
+    USpellGraphSubsystem* GetSpellGraph() const;
+
+    void RebuildCanvasWidget();
+
+    FText GetSelectedCodexTitle() const;
+    FText GetSelectedCodexSign() const;
+    FText GetSelectedCodexDetails() const;
 
     FEarthSpellDefinition ReadSpell() const;
     void WriteSpell(const FEarthSpellDefinition& Spell);

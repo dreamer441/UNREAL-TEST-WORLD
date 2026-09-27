@@ -1,6 +1,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "SpellSpatialTypes.h"
+#include "SpellPatternTypes.h"
+#include "SpellMotionTypes.h"
 #include "EarthSpellDefinition.generated.h"
 
 /** Deprecated Earth shape contract retained for reflected compatibility. */
@@ -46,6 +49,34 @@ struct SPELLCREATION_API FEarthSpellDefinition
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Spatial", meta=(ClampMin="0.0", Units="m"))
     float DistanceM = 3.0f;
+
+    /** Axis the constructed shape is aligned to inside the cast frame. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Spatial")
+    ESpellOrientationAxis Orientation = ESpellOrientationAxis::Up;
+
+    // Legacy shadow of generic Pattern fields. This keeps the current Workbench
+    // adapter lossless until the UI edits FSpellDefinition directly.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Pattern")
+    int32 Amount = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Pattern")
+    ESpellArrangement Arrangement = ESpellArrangement::Line;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Pattern")
+    ESpellPatternAxis PatternAxis = ESpellPatternAxis::Right;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Pattern")
+    ESpellPatternOrientation PatternOrientation = ESpellPatternOrientation::Shared;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Pattern", meta=(Units="cm"))
+    float SpacingCm = 100.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Pattern", meta=(Units="cm"))
+    float CircleRadiusCm = 220.0f;
+
+    /** Independent movement direction. Orientation controls facing, not travel. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Motion")
+    ESpellMotionDirection MotionDirection = ESpellMotionDirection::Forward;
 
     /** 0 = create with no initial launch velocity. Gravity still applies. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell|Motion", meta=(ClampMin="0.0"))

@@ -10,12 +10,40 @@
   "EnabledByDefault": true,
   "IsBetaVersion": true,
   "Modules": [
-    { "Name": "SpellExecution", "Type": "Runtime", "LoadingPhase": "Default" }
+    {
+      "Name": "SpellExecution",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
   ],
   "Plugins": [
-    { "Name": "SpellCreation", "Enabled": true },
-    { "Name": "LiveSpellCasting", "Enabled": true },
-    { "Name": "PlayerViewModes", "Enabled": true },
-    { "Name": "EarthMagic", "Enabled": true }
+    {
+      "Name": "SpellCreation",
+      "Enabled": true
+    },
+    {
+      "Name": "LiveSpellCasting",
+      "Enabled": true
+    },
+    {
+      "Name": "PlayerViewModes",
+      "Enabled": true
+    },
+    {
+      "Name": "EarthMagic",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellLoadout",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellPattern",
+      "Enabled": true
+    },
+    {
+      "Name": "SpellMotion",
+      "Enabled": true
+    }
   ]
 }
