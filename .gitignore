@@ -30,3 +30,7 @@
 # Operating-system metadata.
 Thumbs.db
 Desktop.ini
+/PatchBackups/
+/.v016*_last_backup.txt
+/.v016_*_restore_backup.txt
+/.v017*_last_backup.txt

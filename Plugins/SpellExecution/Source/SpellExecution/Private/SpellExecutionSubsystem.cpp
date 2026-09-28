@@ -36,148 +36,230 @@ void USpellExecutionSubsystem::Tick(const float DeltaSeconds)
     }
 
     UWorld* World = GetWorld();
+
     if (!World || !World->IsGameWorld())
     {
         return;
     }
 
-    APlayerController* Controller = World->GetFirstPlayerController();
+    APlayerController* Controller =
+        World->GetFirstPlayerController();
+
     if (!Controller)
     {
         return;
     }
 
-    // Prepared spell slots 1..0: load first, SPACE remains the universal execution key.
     static const FKey SlotKeys[USpellLoadoutSubsystem::SlotCount] =
     {
         EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,
         EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero
     };
 
-    if (USpellLoadoutSubsystem* Loadout = World->GetSubsystem<USpellLoadoutSubsystem>())
+    if (USpellLoadoutSubsystem* Loadout =
+        World->GetSubsystem<USpellLoadoutSubsystem>())
     {
-        if (ULiveSpellSessionSubsystem* LiveSession = World->GetSubsystem<ULiveSpellSessionSubsystem>())
+        if (ULiveSpellSessionSubsystem* LiveSession =
+            World->GetSubsystem<ULiveSpellSessionSubsystem>())
         {
-            for (int32 SlotIndex = 0; SlotIndex < USpellLoadoutSubsystem::SlotCount; ++SlotIndex)
+            for (int32 SlotIndex = 0;
+                 SlotIndex < USpellLoadoutSubsystem::SlotCount;
+                 ++SlotIndex)
             {
-                if (Controller->WasInputKeyJustPressed(SlotKeys[SlotIndex]))
+                if (Controller->WasInputKeyJustPressed(
+                    SlotKeys[SlotIndex]))
                 {
                     FSpellDefinition PreparedSpell;
-                    if (Loadout->GetSlotSpell(SlotIndex, PreparedSpell))
+
+                    if (Loadout->GetSlotSpell(
+                        SlotIndex,
+                        PreparedSpell))
                     {
                         Loadout->EquipSlot(SlotIndex);
-                        LiveSession->LoadPreparedSpell(PreparedSpell);
+                        LiveSession->LoadPreparedSpell(
+                            PreparedSpell);
                     }
+
                     break;
                 }
             }
         }
     }
 
-    if (Controller->WasInputKeyJustPressed(EKeys::SpaceBar))
+    bool bCastPressed =
+        Controller->WasInputKeyJustPressed(
+            EKeys::SpaceBar);
+
+    if (const UPlayerViewModeSubsystem* Views =
+        World->GetSubsystem<UPlayerViewModeSubsystem>())
+    {
+        switch (Views->GetCurrentMode())
+        {
+            case EPlayerGameplayMode::FirstPerson:
+                // State 1 owns Space as physical Jump.
+                // Hands own LMB/RMB, so no spell execution input lives here yet.
+                bCastPressed = false;
+                break;
+
+            case EPlayerGameplayMode::ThirdPerson:
+                // State 2 owns Space as Jump and LMB as precision spell cast.
+                bCastPressed =
+                    Controller->WasInputKeyJustPressed(
+                        EKeys::LeftMouseButton);
+                break;
+
+            case EPlayerGameplayMode::TopDown:
+            case EPlayerGameplayMode::FreeRoam:
+            default:
+                // States 3/4 retain Space execution.
+                break;
+        }
+    }
+
+    if (bCastPressed)
     {
         ExecuteLiveSpell();
     }
 }
 
-FSpellExecutionResult USpellExecutionSubsystem::ExecuteLiveSpell()
+FSpellExecutionResult
+USpellExecutionSubsystem::ExecuteLiveSpell()
 {
     if (IsExecutionSuspended())
     {
-        return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::ExecutionSuspended);
+        return FSpellExecutionResult::ForOutcome(
+            ESpellExecutionOutcome::ExecutionSuspended);
     }
 
     UWorld* World = GetWorld();
+
     if (!World)
     {
-        return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::NoWorld);
+        return FSpellExecutionResult::ForOutcome(
+            ESpellExecutionOutcome::NoWorld);
     }
 
-    APlayerController* Controller = World->GetFirstPlayerController();
+    APlayerController* Controller =
+        World->GetFirstPlayerController();
+
     if (!Controller)
     {
-        return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::NoController);
+        return FSpellExecutionResult::ForOutcome(
+            ESpellExecutionOutcome::NoController);
     }
 
-    ULiveSpellSessionSubsystem* LiveSession = World->GetSubsystem<ULiveSpellSessionSubsystem>();
+    ULiveSpellSessionSubsystem* LiveSession =
+        World->GetSubsystem<ULiveSpellSessionSubsystem>();
+
     if (!LiveSession || !LiveSession->CanCast())
     {
-        // The grammar is strict: Element -> Shape -> Modifier -> Cast.
-        return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::NoLiveConstruction);
+        return FSpellExecutionResult::ForOutcome(
+            ESpellExecutionOutcome::NoLiveConstruction);
     }
 
-    const FResolvedSpell ResolvedSpell = LiveSession->ResolveGenericSpell();
-    FVector AimDirection = FVector::ForwardVector;
+    const FResolvedSpell ResolvedSpell =
+        LiveSession->ResolveGenericSpell();
+
+    FVector AimDirection =
+        FVector::ForwardVector;
+
     FVector ViewLocation;
     FRotator ViewRotation;
-    Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
-    AimDirection = ViewRotation.Vector().GetSafeNormal();
 
-    if (const UPlayerViewModeSubsystem* Views = World->GetSubsystem<UPlayerViewModeSubsystem>())
+    Controller->GetPlayerViewPoint(
+        ViewLocation,
+        ViewRotation);
+
+    // In third person this is exactly the center reticle direction because
+    // the active view target is the dedicated shoulder camera.
+    AimDirection =
+        ViewRotation.Vector().GetSafeNormal();
+
+    if (const UPlayerViewModeSubsystem* Views =
+        World->GetSubsystem<UPlayerViewModeSubsystem>())
     {
-        FVector TopDownOrigin;
-        FVector TopDownDirection;
-        if (Views->GetTopDownCastRay(TopDownOrigin, TopDownDirection))
+        FVector ModeOrigin;
+        FVector ModeDirection;
+
+        if (Views->GetGameplayCastRay(
+            ModeOrigin,
+            ModeDirection))
         {
-            AimDirection = TopDownDirection;
+            AimDirection =
+                ModeDirection.GetSafeNormal();
         }
     }
 
     FResolvedSpellCastPlacement Placement;
-    if (!FSpellCastPlacement::Resolve(Controller, ResolvedSpell, AimDirection, Placement))
+
+    if (!FSpellCastPlacement::Resolve(
+        Controller,
+        ResolvedSpell,
+        AimDirection,
+        Placement))
     {
-        return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::PlacementFailed);
+        return FSpellExecutionResult::ForOutcome(
+            ESpellExecutionOutcome::PlacementFailed);
     }
 
     TArray<FResolvedPatternInstance> ResolvedInstances;
+
     FSpellPatternResolver::ResolveInstances(
         ResolvedSpell.Definition.Pattern,
         Placement.SpawnLocation,
         Placement.LaunchDirection,
         ResolvedInstances);
 
-    const FQuat BaseSpellRotation = Placement.SpawnRotation.Quaternion();
+    const FQuat BaseSpellRotation =
+        Placement.SpawnRotation.Quaternion();
 
     int32 SpawnedCount = 0;
+
     switch (ResolvedSpell.Definition.Element)
     {
-    case ESpellElement::Earth:
-        for (const FResolvedPatternInstance& Instance : ResolvedInstances)
-        {
-            const FQuat FinalRotation =
-                Instance.PatternRotation * BaseSpellRotation;
-
-            const FVector InstanceLaunchDirection =
-                FSpellMotionResolver::ResolveDirection(
-                    ResolvedSpell.Definition.MotionDirection,
-                    ResolvedSpell.Definition.Pattern,
-                    Instance.Location,
-                    Placement.SpawnLocation,
-                    Placement.LaunchDirection);
-
-            if (FEarthSpellSpawner::SpawnAndLaunch(
-                World,
-                Controller,
-                ResolvedSpell,
-                Instance.Location,
-                FinalRotation.Rotator(),
-                InstanceLaunchDirection))
+        case ESpellElement::Earth:
+            for (const FResolvedPatternInstance& Instance :
+                 ResolvedInstances)
             {
-                ++SpawnedCount;
-            }
-        }
-        break;
+                const FQuat FinalRotation =
+                    Instance.PatternRotation *
+                    BaseSpellRotation;
 
-    default:
-        return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::UnsupportedElement);
+                const FVector InstanceLaunchDirection =
+                    FSpellMotionResolver::ResolveDirection(
+                        ResolvedSpell.Definition.MotionDirection,
+                        ResolvedSpell.Definition.Pattern,
+                        Instance.Location,
+                        Placement.SpawnLocation,
+                        Placement.LaunchDirection);
+
+                if (FEarthSpellSpawner::SpawnAndLaunch(
+                    World,
+                    Controller,
+                    ResolvedSpell,
+                    Instance.Location,
+                    FinalRotation.Rotator(),
+                    InstanceLaunchDirection))
+                {
+                    ++SpawnedCount;
+                }
+            }
+            break;
+
+        default:
+            return FSpellExecutionResult::ForOutcome(
+                ESpellExecutionOutcome::UnsupportedElement);
     }
 
     if (SpawnedCount <= 0)
     {
-        return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::SpawnFailed);
+        return FSpellExecutionResult::ForOutcome(
+            ESpellExecutionOutcome::SpawnFailed);
     }
 
-    // Only a successfully realized spell consumes temporary live construction.
     LiveSession->ResetSession();
-    return FSpellExecutionResult::ForOutcome(ESpellExecutionOutcome::Executed, true);
+
+    return FSpellExecutionResult::ForOutcome(
+        ESpellExecutionOutcome::Executed,
+        true);
 }

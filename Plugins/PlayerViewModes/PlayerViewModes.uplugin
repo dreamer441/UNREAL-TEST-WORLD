@@ -1,9 +1,9 @@
 {
   "FileVersion": 3,
-  "Version": 1,
-  "VersionName": "0.10.0",
-  "FriendlyName": "Player View Modes",
-  "Description": "Owns third-person/top-down camera, cursor movement, orbit control and sprint. Does not depend on any spell or physics implementation.",
+  "Version": 16,
+  "VersionName": "0.16.0",
+  "FriendlyName": "Player Gameplay Modes",
+  "Description": "Four clean gameplay-mode nodes: first person, third person, top-down and free-roam. Arrow keys transition between modes; top-down preserves the existing live-casting contract.",
   "Category": "Gameplay",
   "CreatedBy": "ProjectX",
   "CanContainContent": false,

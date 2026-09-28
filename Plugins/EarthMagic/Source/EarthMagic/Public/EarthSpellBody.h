@@ -51,6 +51,16 @@ public:
     UFUNCTION(BlueprintPure, Category="Earth Magic")
     float GetBodyDensityKgPerM3() const;
 
+    /**
+     * Read-only runtime construction snapshot.
+     * Added as a neutral inspection/debug contract; callers may read the
+     * realized spell data but cannot mutate EarthSpellBody internals.
+     */
+    const FResolvedSpell& GetRuntimeSpell() const
+    {
+        return RuntimeSpell;
+    }
+
     virtual bool BuildImpactRequest_Implementation(const FHitResult& Hit, FImpactRequest& OutRequest) const override;
     virtual bool ReceiveImpact_Implementation(const FImpactRequest& Request, FImpactResult& OutResult) override;
 

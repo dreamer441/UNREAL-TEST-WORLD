@@ -15,18 +15,6 @@ namespace
     {
         return Entry.ProvidesCapabilities.Contains(Capability);
     }
-
-    int32 MagnitudeLevel(const FName ConceptId)
-    {
-        if (ConceptId == FName(TEXT("value.magnitude.0"))) return 0;
-        if (ConceptId == FName(TEXT("value.magnitude.1"))) return 1;
-        if (ConceptId == FName(TEXT("value.magnitude.2"))) return 2;
-        if (ConceptId == FName(TEXT("value.magnitude.3"))) return 3;
-        if (ConceptId == FName(TEXT("value.magnitude.4"))) return 4;
-        if (ConceptId == FName(TEXT("value.magnitude.5"))) return 5;
-        return INDEX_NONE;
-    }
-
     bool IsMagnitudeParent(const FName ConceptId)
     {
         return
