@@ -24,6 +24,10 @@ public:
     UFUNCTION(BlueprintCallable, Category="Spell Creation")
     void SetStoredGenericSpellDefinition(const FSpellDefinition& NewSpell);
 
+    /**
+     * Compatibility projection for older Earth-specific Blueprint/UI callers.
+     * New code should use GetStoredGenericSpellDefinition().
+     */
     UFUNCTION(BlueprintPure, Category="Spell Creation")
     FEarthSpellDefinition GetStoredSpellDefinition() const
     {
@@ -37,10 +41,7 @@ public:
     void ResetToDefaultEarthSpell();
 
 private:
-    UPROPERTY()
-    FEarthSpellDefinition StoredSpell;
-
-    /** Canonical runtime value; StoredSpell retains the original reflected type. */
+    /** Canonical single-spell runtime value. */
     UPROPERTY()
     FSpellDefinition StoredGenericSpell;
 };

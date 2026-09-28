@@ -9,7 +9,6 @@ void USpellCreationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void USpellCreationSubsystem::SetStoredGenericSpellDefinition(const FSpellDefinition& NewSpell)
 {
     StoredGenericSpell = FSpellDefinitionAdapter::Resolve(NewSpell).Definition;
-    StoredSpell = FSpellDefinitionAdapter::ToLegacyEarth(StoredGenericSpell);
 }
 
 void USpellCreationSubsystem::SetStoredSpellDefinition(const FEarthSpellDefinition& NewSpell)
@@ -19,5 +18,7 @@ void USpellCreationSubsystem::SetStoredSpellDefinition(const FEarthSpellDefiniti
 
 void USpellCreationSubsystem::ResetToDefaultEarthSpell()
 {
-    SetStoredSpellDefinition(FEarthSpellDefinition());
+    // The generic default is currently Earth, so reset without going through
+    // the legacy Earth compatibility adapter.
+    SetStoredGenericSpellDefinition(FSpellDefinition());
 }

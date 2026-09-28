@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Framework/Commands/InputChord.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "EarthSpellDefinition.h"
+#include "SpellDefinition.h"
 #include "Layout/Visibility.h"
 #include "InnerRealmSubsystem.generated.h"
 
@@ -57,9 +57,16 @@ private:
     FName SelectedCodexConcept = FName(TEXT("element.earth"));
     FGuid SelectedCanvasNode;
     TSet<FGuid> ExpandedCanvasNodes;
+
+    /**
+     * Rune Canvas palette navigation only.
+     * Categories organize Sign selection but are NOT semantic graph nodes.
+     */
+    int32 SelectedCanvasPaletteCategory = INDEX_NONE;
+
     FName PendingCanvasElement = NAME_None;
 
-    TSharedPtr<SWidget> NavigationWidget;
+    TSharedPtr<SWidget> ShellWidget;
     TSharedPtr<SWidget> EditorWidget;
     TSharedPtr<SWidget> PreviewFrameWidget;
     TSharedPtr<SWidget> CodexWidget;
@@ -94,9 +101,9 @@ private:
     FText GetSelectedCodexSign() const;
     FText GetSelectedCodexDetails() const;
 
-    FEarthSpellDefinition ReadSpell() const;
-    void WriteSpell(const FEarthSpellDefinition& Spell);
-    void SetShape(EEarthSpellShape Shape);
+    FSpellDefinition ReadSpell() const;
+    void WriteSpell(const FSpellDefinition& Spell);
+    void SetShape(ESpellShape Shape);
     FText GetShapeName() const;
 
     FInputChord GetBindingChord(ESpellLiveAction Action) const;
